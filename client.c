@@ -44,12 +44,6 @@ int main(int argc, char *argv[])
 
     int sockfd;
     struct sockaddr_in dest_addr;
-    struct icmp icmp_packet =
-    {
-        .username = "user",
-        .roomname = "room",
-        .message = "message"
-    };
 
     sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
     if (sockfd < 0)
@@ -66,10 +60,13 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    icmp_packet.icmp_type = ICMP_ECHO;
-    // icmp_packet.icmp_id = getpid();
-    // icmp_packet.icmp_seq = 1;
-    // memset(&icmp_packet.data, 'A', sizeof(icmp_packet.data));
+    struct icmp icmp_packet =
+    {
+        .username = "user",
+        .roomname = "room",
+        .message = "message",
+        .icmp_type = ICMP_ECHO
+    };
 
     if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
     {

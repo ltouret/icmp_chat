@@ -7,6 +7,7 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 
+//! add defines for max len of username, roomname, max rooms etc, no magic numbers
 // # define ICMP_
 #define ICMP_ECHO 8
 
@@ -37,7 +38,7 @@ struct icmp
 struct room
 {
     char roomname[11];
-    char users[100][11];
+    char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
     struct room *next;
 };
 
@@ -67,7 +68,7 @@ int main()
 {
     int sockfd;
     struct room *room = NULL;
-    unsigned char buffer[1000] = {0}; // Buffer to hold the packet
+    unsigned char buffer[1000] = {0};
 
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sockfd < 0)
@@ -75,7 +76,6 @@ int main()
         perror("socket");
         exit(EXIT_FAILURE);
     }
-    printf("ICMP socket created successfully.\n");
 
     while (1)
     {
@@ -107,7 +107,7 @@ int main()
                 // printf("  Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->daddr));
                 // printf("  Protocol: %u\n", ip_header->protocol);
 
-                printf("ICMP Header:\n");
+                printf("ICMP data:\n");
                 // printf("  Type: %u\n", icmp_header->icmp_type);
                 // printf("  Code: %u\n", icmp_header->icmp_code);
                 printf("  %s\n", icmp_header->username);
@@ -116,10 +116,6 @@ int main()
 
                 //! if room doesnt exist create
             }
-        }
-        else
-        {
-            printf("Packet is not ICMP\n");
         }
     }
 
