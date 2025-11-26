@@ -12,7 +12,7 @@
 
 NAME = icmp_chat
 
-SRCS = main.c
+SRCS = client.c
 
 OBJS = ${SRCS:.c=.o}
 

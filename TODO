@@ -1,3 +1,9 @@
+TODO
+- One executable for the server and the client (Maybe with program name argv[0] === server and symlink of executable named as client to or by parsing argv[1] as server or client)
+- Client sends msg -> server recv msg -> server broadcasts msg to all -> client recv msg
+- If msg is too big what do i do? split into more than one package?
+-? Make it futur proof with room names
+
 // #include <stdio.h>
 // #include <stdlib.h>
 // #include <string.h>
