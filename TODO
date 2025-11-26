@@ -1,0 +1,48 @@
+// #include <stdio.h>
+// #include <stdlib.h>
+// #include <string.h>
+// #include <unistd.h>
+// #include <sys/socket.h>
+// #include <netinet/ip.h>
+// #include <netinet/ip_icmp.h>
+// #include <arpa/inet.h>
+// #include <errno.h>
+
+// // ... (checksum function from previous examples) ...
+
+// int is_server(const char *program_name) {
+//     return strcmp(program_name, "server") == 0; // Check program name
+// }
+
+// void run_server() {
+//     // ... (ICMP server code from previous examples, using raw sockets) ...
+//     printf("Server running...\n");
+//     //Example of sending a reply
+//     // ...
+// }
+
+// void run_client(const char *target_ip) {
+//     // ... (ICMP client code, using raw sockets) ...
+//     printf("Client running, sending to %s\n", target_ip);
+//     //Example of sending a request.
+//     // ...
+// }
+
+// int main(int argc, char *argv[]) {
+//     if (is_server(argv[0])) {
+//         // Server mode
+//         if (geteuid() != 0) {
+//             fprintf(stderr, "Server must be run with sudo.\n");
+//             return 1;
+//         }
+//         run_server();
+//     } else {
+//         // Client mode
+//         if (argc < 2) {
+//             fprintf(stderr, "Usage: %s <target_ip>\n", argv[0]);
+//             return 1;
+//         }
+//         run_client(argv[1]);
+//     }
+//     return 0;
+// }
