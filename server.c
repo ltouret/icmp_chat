@@ -10,6 +10,7 @@
 //! add defines for max len of username, roomname, max rooms etc, no magic numbers
 // # define ICMP_
 #define ICMP_ECHO 8
+#define ICMP_ECHO_REPLY 0
 
 struct icmp
 {
@@ -35,6 +36,7 @@ struct icmp
 };
 
 //! maybe max rooms to not get ddos out of memory by some random?
+//? too big?
 struct room
 {
     char roomname[11];
@@ -42,32 +44,44 @@ struct room
     struct room *next;
 };
 
-
-//! create room if it doesnt exist
-void create_room(struct room *room, const char *roomname)
+void create_room(struct room **room, const char *roomname)
 {
-    if (room == NULL)
+    if (*room == NULL)
     {
-        //malloc
+        // malloc
+        *room = malloc(sizeof(struct room));
+        strcpy((*room)->roomname, roomname);
+        (*room)->next = NULL;
+        printf("room created with roomname: %s\n", (*room)->roomname);
+        // printf("%ld\n", sizeof(struct room));
+        return;
     }
     // if roomname exists done
-    struct room *current = room;
-    while (current)
+    struct room *current = *room;
+    while (current->next)
     {
         if (current->roomname == roomname)
         {
-            break;
+            return;
         }
         current = current->next;
     }
+
+    // printf("current is %s\n", current->roomname);
     // else create
     // malloc and add to linked list
+    current->next = malloc(sizeof(struct room));
+    // current->next-> = malloc(sizeof(struct room));
+    strcpy(current->next->roomname, roomname);
+    current->next->next = NULL;
+    // printf("current after %s\n", current->next->roomname);
 }
 
 int main()
 {
     int sockfd;
     struct room *room = NULL;
+    create_room(&room, "room");
     unsigned char buffer[1000] = {0};
 
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
@@ -93,12 +107,13 @@ int main()
         if (ip_header->protocol == IPPROTO_ICMP)
         {
             // Parse the ICMP header
+            //! change the name of this or use it only to get the ehader not all the data!
             struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
             // You can further process the ICMP data here
             if (icmp_header->icmp_type == ICMP_ECHO)
             {
-                // printf("Received %zd bytes.\n", bytes_received);
+                printf("Received %zd bytes.\n", bytes_received);
 
                 // printf("IP Header:\n");
                 // printf("  Version: %u\n", ip_header->version);
@@ -114,7 +129,29 @@ int main()
                 printf("  %s\n", icmp_header->roomname);
                 printf("  %s\n", icmp_header->message);
 
-                //! if room doesnt exist create
+                //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
+                // struct sockaddr_in dest_addr;
+                // dest_addr.sin_family = AF_INET;
+                // if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
+                // {
+                //     perror("inet_pton");
+                //     close(sockfd);
+                //     exit(EXIT_FAILURE);
+                // }
+                // struct icmp icmp_packet =
+                //     {
+                //         .username = "server",
+                //         .roomname = "room",
+                //         .message = "i am the server!",
+                //         .icmp_type = ICMP_ECHO_REPLY};
+
+                // if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+                // {
+                //     perror("sendto");
+                //     close(sockfd);
+                //     exit(EXIT_FAILURE);
+                // }
+                // printf("sent\n");
             }
         }
     }
