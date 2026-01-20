@@ -77,6 +77,29 @@ void create_room(struct room **room, const char *roomname)
     // printf("current after %s\n", current->next->roomname);
 }
 
+unsigned short calculate_checksum(unsigned short *ptr, int nbytes) {
+    long sum;
+    unsigned short oddbyte;
+    short answer;
+
+    sum = 0;
+    while (nbytes > 1) {
+        sum += *ptr++;
+        nbytes -= 2;
+    }
+    if (nbytes == 1) {
+        oddbyte = 0;
+        *((u_char *)&oddbyte) = *(u_char *)ptr;
+        sum += oddbyte;
+    }
+
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum = sum + (sum >> 16);
+    answer = (short)~sum;
+
+    return (answer);
+}
+
 int main()
 {
     int sockfd;
@@ -127,31 +150,41 @@ int main()
                 // printf("  Code: %u\n", icmp_header->icmp_code);
                 printf("  %s\n", icmp_header->username);
                 printf("  %s\n", icmp_header->roomname);
+                // printf("  %d\n", icmp_header->icmp_id);
                 printf("  %s\n", icmp_header->message);
 
-                //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
-                // struct sockaddr_in dest_addr;
-                // dest_addr.sin_family = AF_INET;
-                // if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
-                // {
-                //     perror("inet_pton");
-                //     close(sockfd);
-                //     exit(EXIT_FAILURE);
-                // }
-                // struct icmp icmp_packet =
-                //     {
-                //         .username = "server",
-                //         .roomname = "room",
-                //         .message = "i am the server!",
-                //         .icmp_type = ICMP_ECHO_REPLY};
+                //! add packet validation to see if it comes from a client, maybe create a checksum function? -> could add it to icmp_header->padding, 
+                //! like that i know when its a ping of mine, and for all else i can do a normal ping reply
+                if (!strcmp(icmp_header->roomname, "room"))
+                    printf("same room, validation ok\n");
 
-                // if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
-                // {
-                //     perror("sendto");
-                //     close(sockfd);
-                //     exit(EXIT_FAILURE);
-                // }
-                // printf("sent\n");
+                //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
+                struct sockaddr_in dest_addr;
+                dest_addr.sin_family = AF_INET;
+                if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
+                {
+                    perror("inet_pton");
+                    close(sockfd);
+                    exit(EXIT_FAILURE);
+                }
+                struct icmp icmp_packet =
+                    {
+                        .username = "server",
+                        .roomname = "room",
+                        .message = "i am the server!",
+                        .icmp_id = icmp_header->icmp_id,
+                        .icmp_type = ICMP_ECHO_REPLY
+                    };
+
+                icmp_packet.icmp_cksum = 0;
+                icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
+                if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+                {
+                    perror("sendto");
+                    close(sockfd);
+                    exit(EXIT_FAILURE);
+                }
+                printf("sent\n");
             }
         }
     }
