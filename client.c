@@ -67,7 +67,8 @@ int main(int argc, char *argv[])
             .username = "user",
             .roomname = "room",
             .message = "message",
-            .icmp_type = ICMP_ECHO};
+            .icmp_type = ICMP_ECHO
+        };
 
     if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
     {
@@ -79,7 +80,7 @@ int main(int argc, char *argv[])
     //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
     unsigned char buffer[1000] = {0};
     ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
-    // printf("Received %zd bytes.\n", bytes_received);
+    printf("Received %zd bytes.\n", bytes_received);
     struct icmp *icmp_reply = (struct icmp *)(buffer); // Skip IP header
 
     if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
@@ -99,6 +100,7 @@ int main(int argc, char *argv[])
         printf("  %s\n", icmp_reply->username);
         printf("  %s\n", icmp_reply->roomname);
         printf("  %s\n", icmp_reply->message);
+        // if (strcmp(icmp_reply->))
     }
 
     close(sockfd);

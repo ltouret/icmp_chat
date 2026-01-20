@@ -3,6 +3,7 @@ TODO
 - Client sends msg -> server recv msg -> server broadcasts msg to all -> client recv msg
 - If msg is too big what do i do? split into more than one package?
 -? Make it futur proof with room names
+- need to disable ping in server machine: > sudo sysctl -w net.ipv4.icmp_echo_ignore_all=1
 
 // #include <stdio.h>
 // #include <stdlib.h>
