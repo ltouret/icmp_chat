@@ -12,6 +12,24 @@
 #define ICMP_ECHO 8
 #define ICMP_ECHO_REPLY 0
 
+#ifdef __APPLE__
+
+struct iphdr {
+    unsigned int ihl:4;
+    unsigned int version:4;
+    uint8_t tos;
+    uint16_t tot_len;
+    uint16_t id;
+    uint16_t frag_off;
+    uint8_t ttl;
+    uint8_t protocol;
+    uint16_t check;
+    uint32_t saddr;
+    uint32_t daddr;
+};
+
+#endif
+
 struct icmp
 {
     // header 20 bytes
@@ -79,6 +97,9 @@ void create_room(struct room **room, const char *roomname)
 
 int main()
 {
+    #ifdef __APPLE__
+        printf("Using custom iphdr for Apple\n");
+    #endif
     int sockfd;
     struct room *room = NULL;
     create_room(&room, "room");
@@ -93,6 +114,7 @@ int main()
 
     while (1)
     {
+        printf("Packet received\n");
         ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
         if (bytes_received < 0)
         {
@@ -100,6 +122,7 @@ int main()
             continue; // Or handle the error as needed
         }
 
+        printf("Packet received\n");
         // Parse the IP header
         struct iphdr *ip_header = (struct iphdr *)buffer;
 

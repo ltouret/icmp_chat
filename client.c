@@ -69,13 +69,18 @@ int main(int argc, char *argv[])
             .message = "message",
             .icmp_type = ICMP_ECHO};
 
+    // maybe send connection request first to initialize server state - identify user kind of a login?
+    // printf("Sending ICMP packet to %s\n", argv[1]);
     if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
     {
         perror("sendto");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+    printf("Sending ICMP packet to %s\n", argv[1]);
 
+    exit(1);
+    // Optionally, you can implement receiving a response here
     //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
     unsigned char buffer[1000] = {0};
     ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
