@@ -40,7 +40,10 @@ struct icmp
 struct room
 {
     char roomname[11];
+    //? usernames dont seem necessary, each time and user sends a msg if broadcast directly his username to all the others
+    // ? but all the others receive the username so keeping those in memory is useless no?
     char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
+    uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this
     struct room *next;
 };
 
@@ -77,7 +80,14 @@ void create_room(struct room **room, const char *roomname)
     // printf("current after %s\n", current->next->roomname);
 }
 
-unsigned short calculate_checksum(unsigned short *ptr, int nbytes) {
+// add_if_not_in_room(icmp_header, room, ip_header->saddr);
+void add_if_not_in_room(struct icmp *icmp_packet, struct room *room, uint32_t ip)
+{
+
+}
+
+unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
+{
     long sum;
     unsigned short oddbyte;
     short answer;
@@ -104,6 +114,7 @@ int main()
 {
     int sockfd;
     struct room *room = NULL;
+    //? free this at the end of the program, but since its infinite loop it shouldnt be a problem for now
     create_room(&room, "room");
     unsigned char buffer[1000] = {0};
 
@@ -116,6 +127,7 @@ int main()
 
     while (1)
     {
+        //! code other part that will just reply to pings maybe?
         ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
         if (bytes_received < 0)
         {
@@ -130,10 +142,9 @@ int main()
         if (ip_header->protocol == IPPROTO_ICMP)
         {
             // Parse the ICMP header
-            //! change the name of this or use it only to get the ehader not all the data!
+            //! change the name of this or use it only to get the header not all the data!
             struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
-            // You can further process the ICMP data here
             if (icmp_header->icmp_type == ICMP_ECHO)
             {
                 printf("Received %zd bytes.\n", bytes_received);
@@ -155,18 +166,32 @@ int main()
 
                 //! add packet validation to see if it comes from a client, maybe create a checksum function? -> could add it to icmp_header->padding, 
                 //! like that i know when its a ping of mine, and for all else i can do a normal ping reply
+                // ? for now only one room so this must be skipped
+                // ? best way to do this is to hardcode room logic to name "room" so users cant change of room,
+                // ? so we ignore the value received from the user
                 if (!strcmp(icmp_header->roomname, "room"))
                     printf("same room, validation ok\n");
 
+                //? here we add user if not already in room 
                 //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
                 struct sockaddr_in dest_addr;
                 dest_addr.sin_family = AF_INET;
+                // dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
                 if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
                 {
                     perror("inet_pton");
                     close(sockfd);
                     exit(EXIT_FAILURE);
                 }
+
+                /* This function is supposed to: 
+                    - check if user is not in room already
+                        - if exists we do nothing
+                        - if doesnt exists we add to room linked list and add ip to room ips
+                */
+                add_if_not_in_room(icmp_header, room, ip_header->saddr);
+
+                //? here we create the broadcast icmp packet
                 struct icmp icmp_packet =
                     {
                         .username = "server",
@@ -178,6 +203,7 @@ int main()
 
                 icmp_packet.icmp_cksum = 0;
                 icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
+                //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
                 if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
                 {
                     perror("sendto");
