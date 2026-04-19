@@ -44,6 +44,7 @@ struct room
     // ? but all the others receive the username so keeping those in memory is useless no?
     char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
     uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this
+    unsigned char user_counter;
     struct room *next;
 };
 
@@ -52,7 +53,7 @@ void create_room(struct room **room, const char *roomname)
     if (*room == NULL)
     {
         // malloc
-        *room = malloc(sizeof(struct room));
+        *room = calloc(sizeof(struct room));
         strcpy((*room)->roomname, roomname);
         (*room)->next = NULL;
         printf("room created with roomname: %s\n", (*room)->roomname);
@@ -63,7 +64,7 @@ void create_room(struct room **room, const char *roomname)
     struct room *current = *room;
     while (current->next)
     {
-        if (current->roomname == roomname)
+        if (strcmp(current->roomname, roomname) == 0)
         {
             return;
         }
@@ -73,17 +74,57 @@ void create_room(struct room **room, const char *roomname)
     // printf("current is %s\n", current->roomname);
     // else create
     // malloc and add to linked list
-    current->next = malloc(sizeof(struct room));
+    current->next = calloc(sizeof(struct room));
     // current->next-> = malloc(sizeof(struct room));
+    //! if roomname more than size 10 then this overflows! addd protection
     strcpy(current->next->roomname, roomname);
     current->next->next = NULL;
     // printf("current after %s\n", current->next->roomname);
 }
 
+//? for debugging maybe send username as parameter for now to show if it works correctly
 // add_if_not_in_room(icmp_header, room, ip_header->saddr);
-void add_if_not_in_room(struct icmp *icmp_packet, struct room *room, uint32_t ip)
+void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
 {
+    /* This function is supposed to: 
+        - check if user is not in room already
+            - if exists we do nothing
+            - if doesnt exists we add to room linked list and add ip to room ips
+        - if roomname doesnt exist do nothing
+    */
+    struct room *current = room;
 
+    while (current)
+    {
+        if (strcmp(current->roomname, roomname) == 0)
+        {
+            break;
+        }
+        current = current->next;
+    }
+    if (current == NULL)
+    {
+        printf("Roomname doesnt exist so we dont anything\n");
+        return;
+    }
+    //! this if is not necessary now then
+    for (int i = 0; i < 100; i++)
+    {
+        if (current->ips[i] == ip)
+        {
+            return;
+        }
+    }
+    const unsigned char user_counter = current->user_counter;
+    if (user_counter >= 100)
+    {
+        printf("Room is full, cannot add more users\n");
+        return;
+    }
+    current->ips[user_counter] = ip;
+    current->user_counter++;
+    //? for debugging maybe send username as parameter for now to show if it works correctly
+    printf("Added to roomname %s the ip %d\n", roomname, ip);
 }
 
 unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
@@ -189,7 +230,7 @@ int main()
                         - if exists we do nothing
                         - if doesnt exists we add to room linked list and add ip to room ips
                 */
-                add_if_not_in_room(icmp_header, room, ip_header->saddr);
+                add_if_not_in_room(icmp_header->roomname, room, ip_header->saddr);
 
                 //? here we create the broadcast icmp packet
                 struct icmp icmp_packet =
