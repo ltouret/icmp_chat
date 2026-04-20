@@ -34,6 +34,14 @@ struct icmp
     uint8_t message[20];
 };
 
+
+/*
+    For client we want to receive data from server and stdin at the same time,
+    so we are going to change this and use poll to listen to those two entry points!
+    update it :D
+    now we will mae this work like this:
+    ./client username server_ip
+*/
 int main(int argc, char *argv[])
 {
     if (argc != 2)
