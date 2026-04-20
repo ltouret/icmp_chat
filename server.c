@@ -169,6 +169,8 @@ int main()
     while (1)
     {
         //! code other part that will just reply to pings maybe?
+        //! maybe buffer should be re init to 0 after each recvfrom? to avoid parsing old data if new packet is smaller than old one
+        //! buffer size is a question too using 1000 for testing purposes
         ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
         if (bytes_received < 0)
         {
@@ -215,6 +217,7 @@ int main()
 
                 //? here we add user if not already in room 
                 //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
+                //? this should be done in the for loop where we send the packet to all users in the room.
                 struct sockaddr_in dest_addr;
                 dest_addr.sin_family = AF_INET;
                 // dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
@@ -225,33 +228,32 @@ int main()
                     exit(EXIT_FAILURE);
                 }
 
-                /* This function is supposed to: 
-                    - check if user is not in room already
-                        - if exists we do nothing
-                        - if doesnt exists we add to room linked list and add ip to room ips
-                */
                 add_if_not_in_room(icmp_header->roomname, room, ip_header->saddr);
 
                 //? here we create the broadcast icmp packet
                 struct icmp icmp_packet =
-                    {
-                        .username = "server",
-                        .roomname = "room",
-                        .message = "i am the server!",
-                        .icmp_id = icmp_header->icmp_id,
-                        .icmp_type = ICMP_ECHO_REPLY
-                    };
+                {
+                    .username = icmp_header->username, // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
+                    .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
+                    .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
+                    .icmp_id = icmp_header->icmp_id,
+                    .icmp_type = ICMP_ECHO_REPLY
+                };
 
                 icmp_packet.icmp_cksum = 0;
                 icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
                 //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
-                if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
-                {
-                    perror("sendto");
-                    close(sockfd);
-                    exit(EXIT_FAILURE);
+                for (int i = 0; i < room->user_counter; i++) {
+                    //? add ip to dest_addr then send it!
+                    // dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
+                    if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+                    {
+                        perror("sendto");
+                        close(sockfd);
+                        exit(EXIT_FAILURE);
+                    }
+                    printf("sent\n");
                 }
-                printf("sent\n");
             }
         }
     }
