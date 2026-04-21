@@ -53,7 +53,11 @@ void create_room(struct room **room, const char *roomname)
     if (*room == NULL)
     {
         // malloc
-        *room = calloc(sizeof(struct room));
+        *room = calloc(1, sizeof(struct room));
+        if (*room == NULL) {
+            perror("Failed to allocate memory for room");
+            exit(EXIT_FAILURE);
+        }
         strcpy((*room)->roomname, roomname);
         (*room)->next = NULL;
         printf("room created with roomname: %s\n", (*room)->roomname);
@@ -74,7 +78,12 @@ void create_room(struct room **room, const char *roomname)
     // printf("current is %s\n", current->roomname);
     // else create
     // malloc and add to linked list
-    current->next = calloc(sizeof(struct room));
+    current->next = calloc(1, sizeof(struct room));
+    if (current->next == NULL) {
+        // Handle error: exit or return
+        perror("Failed to allocate memory for new room");
+        exit(EXIT_FAILURE);
+    }
     // current->next-> = malloc(sizeof(struct room));
     //! if roomname more than size 10 then this overflows! addd protection
     strcpy(current->next->roomname, roomname);
@@ -204,7 +213,7 @@ int main()
                 // printf("  Code: %u\n", icmp_header->icmp_code);
                 printf("  %s\n", icmp_header->username);
                 printf("  %s\n", icmp_header->roomname);
-                // printf("  %d\n", icmp_header->icmp_id);
+                printf("  %d\n", icmp_header->icmp_id); //? for the ID we need maybe to keep track of this and keep augmenting it as a normal ping
                 printf("  %s\n", icmp_header->message);
 
                 //! add packet validation to see if it comes from a client, maybe create a checksum function? -> could add it to icmp_header->padding, 
@@ -237,15 +246,16 @@ int main()
                     .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
                     .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
                     .icmp_id = icmp_header->icmp_id,
-                    .icmp_type = ICMP_ECHO_REPLY
+                    .icmp_type = ICMP_ECHO_REPLY,
+                    .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
                 };
 
-                icmp_packet.icmp_cksum = 0;
+                // icmp_packet.icmp_cksum = 0;
                 icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
                 //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
                 for (int i = 0; i < room->user_counter; i++) {
                     //? add ip to dest_addr then send it!
-                    // dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
+                    dest_addr.sin_addr.s_addr = room->ips[i]; //! TODO TEST THIS! instead of if
                     if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
                     {
                         perror("sendto");
