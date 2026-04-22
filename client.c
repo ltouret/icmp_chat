@@ -7,6 +7,7 @@
 // #include <netinet/ip_icmp.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <poll.h>
 
 #define ICMP_ECHO 8
 #define ICMP_ECHO_REPLY 0
@@ -68,48 +69,74 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    //! create loop that reads from stdin -> sendto -> recv -> repeat
-    //! control c -> handle disconnect from server? -> maybe server pings to see if client still alive?
-    struct icmp icmp_packet =
-        {
-            .username = "userTest",
-            .roomname = "room",
-            //! test more than 20 chars here - overflow!
-            .message = "message im the best! How are you?",
-            .icmp_type = ICMP_ECHO
-        };
+    struct pollfd fds[2];
+    fds[0].fd = STDIN_FILENO;  // Watch keyboard
+    fds[0].events = POLLIN;
+    fds[1].fd = sockfd;     // Watch socket
+    fds[1].events = POLLIN;
 
-    if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
-    {
-        perror("sendto");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
+    while (1) {
+        poll(fds, 2, -1); // Wait forever until something happens
 
-    //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
-    unsigned char buffer[1000] = {0};
-    ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
-    printf("Received %zd bytes.\n", bytes_received);
-    struct icmp *icmp_reply = (struct icmp *)(buffer); // Skip IP header
+        if (fds[0].revents & POLLIN) {
+            // Keyboard has data! Read it and send() over socket.
+            //! no magic numbers add a define with max 20
+            char msg_buffer[20] = {0};
+            
+            //! cut the new line in the end with this
+            fgets(msg_buffer, 20, stdin);
+            printf("we sent %s", msg_buffer);
+            //! create loop that reads from stdin -> sendto -> recv -> repeat
+            //! control c -> handle disconnect from server? -> maybe server pings to see if client still alive?
+            struct icmp icmp_packet =
+                {
+                    .username = "userTest", // receive from user
+                    .roomname = "room",
+                    //! test more than 20 chars here - overflow!
+                    // .message = "message im the best! How are you?",
+                    .icmp_type = ICMP_ECHO
+                };
 
-    if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
-    {
-        printf("Received %zd bytes inside the echo REPLY\n", bytes_received);
+            //? icmp.message is unsigned char so i get warning between char and unsigned char
+            strncpy(icmp_packet.message, msg_buffer, 20);
 
-        // printf("IP Header:\n");
-        // printf("  Version: %u\n", ip_header->version);
-        // printf("  Header Length: %u\n", ip_header->ihl * 4);
-        // printf("  Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->saddr));
-        // printf("  Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->daddr));
-        // printf("  Protocol: %u\n", ip_header->protocol);
+            if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+            {
+                perror("sendto");
+                close(sockfd);
+                exit(EXIT_FAILURE);
+            }
+        }
 
-        printf("ICMP data:\n");
-        // printf("  Type: %u\n", icmp_header->icmp_type);
-        // printf("  Code: %u\n", icmp_header->icmp_code);
-        printf("  %s\n", icmp_reply->username);
-        printf("  %s\n", icmp_reply->roomname);
-        printf("  %s\n", icmp_reply->message);
-        // if (strcmp(icmp_reply->))
+        if (fds[1].revents & POLLIN) {
+            // Socket has data! recv() it and printf().
+            //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
+            char buffer[1000] = {0};
+            ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
+            // printf("Received %zd bytes.\n", bytes_received);
+            struct icmp *icmp_reply = (struct icmp *)(buffer); // Skip IP header
+
+            //? is bytes_received > 0 protection necessary
+            if (bytes_received > 0 && icmp_reply->icmp_type == ICMP_ECHO_REPLY)
+            {
+                // printf("Received %zd bytes inside the echo REPLY\n", bytes_received);
+
+                // printf("IP Header:\n");
+                // printf("  Version: %u\n", ip_header->version);
+                // printf("  Header Length: %u\n", ip_header->ihl * 4);
+                // printf("  Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->saddr));
+                // printf("  Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->daddr));
+                // printf("  Protocol: %u\n", ip_header->protocol);
+
+                printf("ICMP data:\n");
+                // printf("  Type: %u\n", icmp_header->icmp_type);
+                // printf("  Code: %u\n", icmp_header->icmp_code);
+                printf("  %s\n", icmp_reply->username);
+                printf("  %s\n", icmp_reply->roomname);
+                printf("  %s\n", icmp_reply->message);
+                // if (strcmp(icmp_reply->))
+            }
+        }
     }
 
     close(sockfd);
