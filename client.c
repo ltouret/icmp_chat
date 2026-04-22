@@ -72,9 +72,10 @@ int main(int argc, char *argv[])
     //! control c -> handle disconnect from server? -> maybe server pings to see if client still alive?
     struct icmp icmp_packet =
         {
-            .username = "user",
+            .username = "userTest",
             .roomname = "room",
-            .message = "message",
+            //! test more than 20 chars here - overflow!
+            .message = "message im the best! How are you?",
             .icmp_type = ICMP_ECHO
         };
 
@@ -93,7 +94,7 @@ int main(int argc, char *argv[])
 
     if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
     {
-        printf("Received %zd bytes.\n", bytes_received);
+        printf("Received %zd bytes inside the echo REPLY\n", bytes_received);
 
         // printf("IP Header:\n");
         // printf("  Version: %u\n", ip_header->version);

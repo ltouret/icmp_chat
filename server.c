@@ -48,6 +48,7 @@ struct room
     struct room *next;
 };
 
+//? careful with the use of strncpy as it is not safe this can overflow!
 void create_room(struct room **room, const char *roomname)
 {
     if (*room == NULL)
@@ -91,6 +92,13 @@ void create_room(struct room **room, const char *roomname)
     // printf("current after %s\n", current->next->roomname);
 }
 
+// helper debug function remove after
+void print_ip(uint32_t ip) {
+    struct in_addr ip_addr;
+    ip_addr.s_addr = ip;
+    printf("IP Address: %s\n", inet_ntoa(ip_addr));
+}
+
 //? for debugging maybe send username as parameter for now to show if it works correctly
 // add_if_not_in_room(icmp_header, room, ip_header->saddr);
 void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
@@ -121,6 +129,8 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
     {
         if (current->ips[i] == ip)
         {
+            printf("Ip already in room: ");
+            print_ip(ip);
             return;
         }
     }
@@ -133,7 +143,8 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
     current->ips[user_counter] = ip;
     current->user_counter++;
     //? for debugging maybe send username as parameter for now to show if it works correctly
-    printf("Added to roomname %s the ip %d\n", roomname, ip);
+    printf("Added to roomname %s the ip: ", roomname);
+    print_ip(ip);
 }
 
 unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
@@ -229,28 +240,32 @@ int main()
                 //? this should be done in the for loop where we send the packet to all users in the room.
                 struct sockaddr_in dest_addr;
                 dest_addr.sin_family = AF_INET;
-                // dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
-                if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
-                {
-                    perror("inet_pton");
-                    close(sockfd);
-                    exit(EXIT_FAILURE);
-                }
+                dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
+                // if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
+                // {
+                //     perror("inet_pton");
+                //     close(sockfd);
+                //     exit(EXIT_FAILURE);
+                // }
 
                 add_if_not_in_room(icmp_header->roomname, room, ip_header->saddr);
 
                 //? here we create the broadcast icmp packet
                 struct icmp icmp_packet =
                 {
-                    .username = icmp_header->username, // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
+                    // .username = icmp_header->username, // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
                     .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
-                    .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
+                    // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
                     .icmp_id = icmp_header->icmp_id,
                     .icmp_type = ICMP_ECHO_REPLY,
-                    .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
+                    // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
                 };
 
-                // icmp_packet.icmp_cksum = 0;
+                //! no magic number add a define with max size of msgs and logic to cut messages if too big maybe?
+                strncpy(icmp_packet.message, icmp_header->message, 20);
+                strncpy(icmp_packet.username, icmp_header->username, 10);
+
+                icmp_packet.icmp_cksum = 0;
                 icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
                 //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
                 for (int i = 0; i < room->user_counter; i++) {
