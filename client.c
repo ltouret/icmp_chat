@@ -61,6 +61,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    //! add protect against invalid ip address
     dest_addr.sin_family = AF_INET;
     if (inet_pton(AF_INET, argv[1], &dest_addr.sin_addr) <= 0)
     {
@@ -78,19 +79,26 @@ int main(int argc, char *argv[])
     while (1) {
         poll(fds, 2, -1); // Wait forever until something happens
 
+        // Keyboard has data! Read it and send() over socket.
         if (fds[0].revents & POLLIN) {
-            // Keyboard has data! Read it and send() over socket.
             //! no magic numbers add a define with max 20
+            // ! add more buffer for the msgs and add some kind of buffer split
+            // ! than when its more 100 chars we send it on the next message instead of loosing the message
+            // ? Example buffer 5 -> Hello -> first msg -> World -> second msg -> ! -> third msg
             char msg_buffer[20] = {0};
             
-            //! cut the new line in the end with this
-            fgets(msg_buffer, 20, stdin);
-            printf("we sent %s", msg_buffer);
+            // For now if we get a msg while user is writing then it will scramble the terminal screen
+            // By printing the message in the middle of the msg the user was going to send. Fix it!
+            fgets(msg_buffer, 20, stdin); //? <- receive direclty in icmp_packet.message to have to copy less data around?
+            msg_buffer[strcspn(msg_buffer, "\n")] = '\0'; // Remove newline character
+            printf("\033[A\33[2K\r"); 
+            fflush(stdout);
+            // printf("we sent %s", msg_buffer);
             //! create loop that reads from stdin -> sendto -> recv -> repeat
             //! control c -> handle disconnect from server? -> maybe server pings to see if client still alive?
             struct icmp icmp_packet =
                 {
-                    .username = "userTest", // receive from user
+                    .username = "userTest", // receive from user from argv or connect request
                     .roomname = "room",
                     //! test more than 20 chars here - overflow!
                     // .message = "message im the best! How are you?",
@@ -108,8 +116,8 @@ int main(int argc, char *argv[])
             }
         }
 
+        // Socket has data! recv() it and printf().
         if (fds[1].revents & POLLIN) {
-            // Socket has data! recv() it and printf().
             //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
             char buffer[1000] = {0};
             ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
@@ -128,13 +136,14 @@ int main(int argc, char *argv[])
                 // printf("  Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->daddr));
                 // printf("  Protocol: %u\n", ip_header->protocol);
 
-                printf("ICMP data:\n");
+                // printf("ICMP data:\n");
                 // printf("  Type: %u\n", icmp_header->icmp_type);
                 // printf("  Code: %u\n", icmp_header->icmp_code);
-                printf("  %s\n", icmp_reply->username);
-                printf("  %s\n", icmp_reply->roomname);
-                printf("  %s\n", icmp_reply->message);
-                // if (strcmp(icmp_reply->))
+                // printf("%s: ", icmp_reply->username);
+                // printf("  %s\n", icmp_reply->roomname);
+                // printf("%s\n", icmp_reply->message);
+
+                printf("%s: %s\n", icmp_reply->username, icmp_reply->username);
             }
         }
     }
