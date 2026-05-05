@@ -143,7 +143,7 @@ int main(int argc, char *argv[])
                 // printf("  %s\n", icmp_reply->roomname);
                 // printf("%s\n", icmp_reply->message);
 
-                printf("%s: %s\n", icmp_reply->username, icmp_reply->username);
+                printf("%s: %s\n", icmp_reply->username, icmp_reply->message);
             }
         }
     }
