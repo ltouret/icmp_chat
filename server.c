@@ -46,17 +46,20 @@ struct room
     char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
     uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this
     unsigned char user_counter;
+    struct user *user_list_head;
+    struct user *user_list_tail;
     //? add struct of users her
     struct room *next;
 };
 
 //? remember the order of typed elements is important in c structures maybe adapt this
-// struct user
-// {
-//     char username[11];
-//     uint64_t last_seen;
-//     struct user *next;
-// }
+struct user
+{
+    char username[11];
+    uint32_t ip;
+    uint64_t last_seen;
+    struct user *next;
+};
 
 //? careful with the use of strncpy as it is not safe this can overflow!
 void create_room(struct room **room, const char *roomname)
@@ -119,39 +122,56 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
             - if doesnt exists we add to room linked list and add ip to room ips
         - if roomname doesnt exist do nothing
     */
-    struct room *current = room;
+    struct room *current_room = room;
 
-    while (current)
+    while (current_room)
     {
-        if (strcmp(current->roomname, roomname) == 0)
+        if (strcmp(current_room->roomname, roomname) == 0)
         {
             break;
         }
-        current = current->next;
+        current_room = current_room->next;
     }
-    if (current == NULL)
+    if (current_room == NULL)
     {
-        printf("Roomname doesnt exist so we dont anything\n");
+        printf("Roomname doesnt exist so we dont do anything\n");
         return;
     }
-    //! this if is not necessary now then
-    for (int i = 0; i < 100; i++)
-    {
-        if (current->ips[i] == ip)
-        {
-            printf("Ip already in room: ");
-            print_ip(ip);
-            return;
-        }
-    }
-    const unsigned char user_counter = current->user_counter;
+    
+    const unsigned char user_counter = current_room->user_counter;
     if (user_counter >= 100)
     {
         printf("Room is full, cannot add more users\n");
         return;
     }
-    current->ips[user_counter] = ip;
-    current->user_counter++;
+
+    // TODO
+    //? this for now checks only if user ip is in room -> change it!
+    //? we need to check if user ip + username + some kind of unique id is in room
+    struct user *current_user = current_room->user_list_head;
+    while (current_user)
+    {
+        if (current_user->ip == ip)
+        {
+            printf("Ip already in room: ");
+            print_ip(ip);
+            return;
+        }
+        current_user = current_user->next;
+    }
+
+    //TODO
+    //? what to do here if user_list_head == NULL and user_list_tail == NULL -> first user?
+    //? Malloc this!!
+
+    // TODO
+    //? For now if we let current_user == NULL then it means the ip is not in the room but now how can we add it?
+    //? as then current_user == NULL so i can't add the new user to the tail but as i dont need to add it in order
+    //? then its better to add it to the head, with the last_seen = now, like that the fist element is always the new one?
+    //? or we can try to add it to the tail and have some kind of order in which the head are the "stale" or old client 
+    //? that should be removed!
+    current_room->ips[user_counter] = ip;
+    current_room->user_counter++;
     //? for debugging maybe send username as parameter for now to show if it works correctly
     printf("Added to roomname %s the ip: ", roomname);
     print_ip(ip);
