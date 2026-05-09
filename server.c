@@ -7,6 +7,7 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <poll.h>
+#include <sys/time.h>
 
 //! add defines for max len of username, roomname, max rooms etc, no magic numbers
 // # define ICMP_
@@ -112,6 +113,15 @@ void print_ip(uint32_t ip) {
     printf("IP Address: %s\n", inet_ntoa(ip_addr));
 }
 
+//! check this func?
+int64_t currentTimeMillis() {
+    struct timeval time;
+    gettimeofday(&time, NULL);
+    int64_t s1 = (int64_t)(time.tv_sec) * 1000;
+    int64_t s2 = (time.tv_usec / 1000);
+    return s1 + s2;
+}
+
 //? for debugging maybe send username as parameter for now to show if it works correctly
 // add_if_not_in_room(icmp_header, room, ip_header->saddr);
 void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
@@ -132,6 +142,7 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
         }
         current_room = current_room->next;
     }
+
     if (current_room == NULL)
     {
         printf("Roomname doesnt exist so we dont do anything\n");
@@ -165,7 +176,7 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
         }
         //? add last_seen to now and username of user
         strcpy(new_user->username, "testUser");
-        new_user->last_seen = 0;
+        new_user->last_seen = currentTimeMillis();
         new_user->ip = ip;
         new_user->next = NULL;
 
@@ -173,12 +184,8 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
         current_room->user_list_tail = new_user;
 
         current_room->user_counter++;
-        
-        //! legacy to be removed in next commit
-        current_room->ips[user_counter] = ip;
-        //! legacy to be removed in next commit
 
-        printf("Added to roomname %s the ip: ", roomname);
+        printf("Added to roomname %s the at time: %d to the ip", roomname, new_user->last_seen);
         print_ip(ip);
         return;
     }
@@ -210,7 +217,7 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
     }
     //? add last_seen to now and username of user
     strcpy(new_user->username, "testUser");
-    new_user->last_seen = 0;
+    new_user->last_seen = currentTimeMillis();
     new_user->ip = ip;
     new_user->next = NULL;
 
@@ -218,17 +225,10 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
     current_room->user_list_tail = new_user;
 
     current_room->user_counter++;
-    printf("Added to roomname %s the ip: ", roomname);
+    printf("Added to roomname %s the at time: %d to the ip", roomname, new_user->last_seen);
     print_ip(ip);
 
-    // return;
-
-    //! legacy to be removed in next commit
-    current_room->ips[user_counter] = ip;
-    current_room->user_counter++;
-    //? for debugging maybe send username as parameter for now to show if it works correctly
-    // printf("Added to roomname %s the ip: ", roomname);
-    // print_ip(ip);
+    return;
 }
 
 unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
@@ -271,7 +271,7 @@ int main()
     }
 
     struct pollfd fd;
-    fd.fd = sockfd;     // Watch socket
+    fd.fd = sockfd;
     fd.events = POLLIN;
 
     while (1)
@@ -369,9 +369,12 @@ int main()
                         icmp_packet.icmp_cksum = 0;
                         icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
                         //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
-                        for (int i = 0; i < room->user_counter; i++) {
-                            //? add ip to dest_addr then send it!
-                            dest_addr.sin_addr.s_addr = room->ips[i]; //! TODO TEST THIS! instead of if
+
+                        struct user *current_user = room->user_list_head;
+
+                        while (current_user)
+                        {
+                            dest_addr.sin_addr.s_addr = current_user->ip;
                             if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
                             {
                                 perror("sendto");
@@ -379,6 +382,7 @@ int main()
                                 exit(EXIT_FAILURE);
                             }
                             printf("sent\n");
+                            current_user = current_user->next;
                         }
                     }
                 }
