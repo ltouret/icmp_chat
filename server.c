@@ -146,9 +146,43 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
     }
 
     // TODO
+    //! this will go into its own function to add ip to room
     //? this for now checks only if user ip is in room -> change it!
     //? we need to check if user ip + username + some kind of unique id is in room
     struct user *current_user = current_room->user_list_head;
+
+    //TODO
+    //? this is if adding first user
+    if (!current_user)
+    {
+        //TODO
+        //! this goes into its own function as appending a new user is always the same!
+        struct user *new_user = calloc(1, sizeof(struct user));
+        if (!new_user)
+        {
+            perror("Failed to allocate memory for user");
+            exit(EXIT_FAILURE);
+        }
+        //? add last_seen to now and username of user
+        strcpy(new_user->username, "testUser");
+        new_user->last_seen = 0;
+        new_user->ip = ip;
+        new_user->next = NULL;
+
+        current_room->user_list_head = new_user;
+        current_room->user_list_tail = new_user;
+
+        current_room->user_counter++;
+        
+        //! legacy to be removed in next commit
+        current_room->ips[user_counter] = ip;
+        //! legacy to be removed in next commit
+
+        printf("Added to roomname %s the ip: ", roomname);
+        print_ip(ip);
+        return;
+    }
+
     while (current_user)
     {
         if (current_user->ip == ip)
@@ -160,21 +194,41 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
         current_user = current_user->next;
     }
 
-    //TODO
-    //? what to do here if user_list_head == NULL and user_list_tail == NULL -> first user?
-    //? Malloc this!!
-
     // TODO
-    //? For now if we let current_user == NULL then it means the ip is not in the room but now how can we add it?
     //? as then current_user == NULL so i can't add the new user to the tail but as i dont need to add it in order
     //? then its better to add it to the head, with the last_seen = now, like that the fist element is always the new one?
     //? or we can try to add it to the tail and have some kind of order in which the head are the "stale" or old client 
     //? that should be removed!
+
+    //? this is if adding second - third users ++
+    //! this goes into its own function as appending a new user is always the same!
+    struct user *new_user = calloc(1, sizeof(struct user));
+    if (!new_user)
+    {
+        perror("Failed to allocate memory for user");
+        exit(EXIT_FAILURE);
+    }
+    //? add last_seen to now and username of user
+    strcpy(new_user->username, "testUser");
+    new_user->last_seen = 0;
+    new_user->ip = ip;
+    new_user->next = NULL;
+
+    current_room->user_list_tail->next = new_user;
+    current_room->user_list_tail = new_user;
+
+    current_room->user_counter++;
+    printf("Added to roomname %s the ip: ", roomname);
+    print_ip(ip);
+
+    // return;
+
+    //! legacy to be removed in next commit
     current_room->ips[user_counter] = ip;
     current_room->user_counter++;
     //? for debugging maybe send username as parameter for now to show if it works correctly
-    printf("Added to roomname %s the ip: ", roomname);
-    print_ip(ip);
+    // printf("Added to roomname %s the ip: ", roomname);
+    // print_ip(ip);
 }
 
 unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
