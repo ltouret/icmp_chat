@@ -76,7 +76,10 @@ int main(int argc, char *argv[])
     fds[1].fd = sockfd;     // Watch socket
     fds[1].events = POLLIN;
 
-    while (1) {
+    //? better than just 1 and can be used later for control c the program
+    char running = 1;
+    while (running)
+    {
         poll(fds, 2, -1); // Wait forever until something happens
 
         // Keyboard has data! Read it and send() over socket.
@@ -125,6 +128,7 @@ int main(int argc, char *argv[])
             struct icmp *icmp_reply = (struct icmp *)(buffer); // Skip IP header
 
             //? is bytes_received > 0 protection necessary
+            //TODO if its a PING from server reply PONG and nothing else (eg dont print to screen)
             if (bytes_received > 0 && icmp_reply->icmp_type == ICMP_ECHO_REPLY)
             {
                 // printf("Received %zd bytes inside the echo REPLY\n", bytes_received);

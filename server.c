@@ -270,6 +270,48 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
     return (answer);
 }
 
+//? this for now just sends a PING to every client
+// this means to every IP so if two clients have the same ip it will sent to that ip twice
+// when I rework the unique id of an user ill change this too most likely 
+void send_all_pings(int sockfd, struct user *current_user)
+{
+    /*
+    TODO for now just send a special PING packet 
+    What could PING msg be?
+    */
+    struct icmp icmp_packet =
+    {
+        // .username = icmp_header->username, // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
+        .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
+        // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
+        .icmp_id = 0,
+        .icmp_type = ICMP_ECHO_REPLY,
+        // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
+    };
+
+    //! no magic number add a define with max size of msgs and logic to cut messages if too big maybe?
+    // strncpy(icmp_packet.message, icmp_header->message, 20);
+    // strncpy(icmp_packet.username, icmp_header->username, 10);
+
+    icmp_packet.icmp_cksum = 0;
+    icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
+
+    struct sockaddr_in dest_addr = {0};
+    dest_addr.sin_family = AF_INET;
+    while (current_user)
+    {
+        dest_addr.sin_addr.s_addr = current_user->ip;
+        if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+        {
+            perror("sendto");
+            close(sockfd);
+            exit(EXIT_FAILURE);
+        }
+        printf("sent\n");
+        current_user = current_user->next;
+    }
+}
+
 int main()
 {
     int sockfd;
@@ -299,7 +341,9 @@ int main()
 
         //! ping here before everything
         // - send_all_pings() - every 5? seconds
-            /*  I think the Ping feature will have an error as the server will send one ping to the client,
+            /*  
+                TODO
+                I think the Ping feature will have an error as the server will send one ping to the client,
                 but the client kernel will reply to that ping and the server will receive that pong instead of the client pong
                 that breaks my server ping - client pong logic, need to find a way to make it work.
                 ideas for now:
@@ -309,8 +353,8 @@ int main()
 	    // - cleanup() When do i run this? - If users last_seen more than 10 seconds then remove from room.
 
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
-        // 
         int ret = poll(&fd, 1, 2000);
+        // printf("we wait for now \n"); // <- DEBUG remove later
 
         if (ret > 0) {
             if (fd.revents & POLLIN) {
@@ -367,13 +411,7 @@ int main()
                         // init to zero this!
                         struct sockaddr_in dest_addr = {0};
                         dest_addr.sin_family = AF_INET;
-                        dest_addr.sin_addr.s_addr = ip_header->saddr; //! TODO TEST THIS! instead of if
-                        // if (inet_pton(AF_INET, inet_ntoa(*(struct in_addr *)&ip_header->saddr), &dest_addr.sin_addr) <= 0)
-                        // {
-                        //     perror("inet_pton");
-                        //     close(sockfd);
-                        //     exit(EXIT_FAILURE);
-                        // }
+                        dest_addr.sin_addr.s_addr = ip_header->saddr;
 
                         //? for now we just add to roomname "room" this will change when we add the different rooms
                         add_if_not_in_room(icmp_header->roomname, icmp_header->username, room, ip_header->saddr);
@@ -395,8 +433,8 @@ int main()
 
                         icmp_packet.icmp_cksum = 0;
                         icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
-                        //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
 
+                        //? here we send the icmp packet to the whole linked list of users by iterating through all the rooms.ips
                         struct user *current_user = room->user_list_head;
 
                         while (current_user)
