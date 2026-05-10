@@ -7,7 +7,7 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include <poll.h>
-#include <sys/time.h>
+#include <time.h>
 
 //! add defines for max len of username, roomname, max rooms etc, no magic numbers
 // # define ICMP_
@@ -45,7 +45,7 @@ struct room
     //? usernames dont seem necessary, each time and user sends a msg if broadcast directly his username to all the others
     // ? but all the others receive the username so keeping those in memory is useless no?
     char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
-    uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this
+    uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this //? use a define not a magic number
     unsigned char user_counter;
     struct user *user_list_head;
     struct user *user_list_tail;
@@ -114,17 +114,41 @@ void print_ip(uint32_t ip) {
 }
 
 //! check this func?
-int64_t currentTimeMillis() {
-    struct timeval time;
-    gettimeofday(&time, NULL);
-    int64_t s1 = (int64_t)(time.tv_sec) * 1000;
-    int64_t s2 = (time.tv_usec / 1000);
-    return s1 + s2;
+// int64_t currentTimeMillis() {
+//     struct timeval time;
+//     gettimeofday(&time, NULL);
+//     int64_t s1 = (int64_t)(time.tv_sec) * 1000;
+//     int64_t s2 = (time.tv_usec / 1000);
+//     return s1 + s2;
+// }
+
+int64_t getMonotonicMillis() {
+    struct timespec ts;
+    // CLOCK_MONOTONIC is immune to system time changes
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    // int64_t ret = (int64_t)ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
+    // printf("getMonotonicMillis %lld ", ret);
+    // return ret;
+    return (int64_t)ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
+}
+
+struct user *create_user_in_room(char *username, uint32_t ip)
+{
+    struct user *new_user = calloc(1, sizeof(struct user));
+    if (!new_user)
+    {
+        perror("Failed to allocate memory for user");
+        return NULL;
+    }
+    strcpy(new_user->username, username);
+    new_user->last_seen = getMonotonicMillis();
+    new_user->ip = ip;
+    new_user->next = NULL;
 }
 
 //? for debugging maybe send username as parameter for now to show if it works correctly
 // add_if_not_in_room(icmp_header, room, ip_header->saddr);
-void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
+void add_if_not_in_room(char *roomname, char *username, struct room *room, uint32_t ip)
 {
     /* This function is supposed to: 
         - check if user is not in room already
@@ -149,6 +173,7 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
         return;
     }
     
+    //TODO change magic number here and maybe max clients 1k?
     const unsigned char user_counter = current_room->user_counter;
     if (user_counter >= 100)
     {
@@ -168,24 +193,19 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
     {
         //TODO
         //! this goes into its own function as appending a new user is always the same!
-        struct user *new_user = calloc(1, sizeof(struct user));
+        struct user *new_user = create_user_in_room(username, ip);
         if (!new_user)
         {
             perror("Failed to allocate memory for user");
             exit(EXIT_FAILURE);
         }
-        //? add last_seen to now and username of user
-        strcpy(new_user->username, "testUser");
-        new_user->last_seen = currentTimeMillis();
-        new_user->ip = ip;
-        new_user->next = NULL;
 
         current_room->user_list_head = new_user;
         current_room->user_list_tail = new_user;
 
         current_room->user_counter++;
 
-        printf("Added to roomname %s the at time: %d to the ip", roomname, new_user->last_seen);
+        printf("Added to roomname %s the at time: %lld to the ", roomname, new_user->last_seen);
         print_ip(ip);
         return;
     }
@@ -209,23 +229,18 @@ void add_if_not_in_room(char *roomname, struct room *room, uint32_t ip)
 
     //? this is if adding second - third users ++
     //! this goes into its own function as appending a new user is always the same!
-    struct user *new_user = calloc(1, sizeof(struct user));
+    struct user *new_user = create_user_in_room(username, ip);
     if (!new_user)
     {
         perror("Failed to allocate memory for user");
         exit(EXIT_FAILURE);
     }
-    //? add last_seen to now and username of user
-    strcpy(new_user->username, "testUser");
-    new_user->last_seen = currentTimeMillis();
-    new_user->ip = ip;
-    new_user->next = NULL;
 
     current_room->user_list_tail->next = new_user;
     current_room->user_list_tail = new_user;
 
     current_room->user_counter++;
-    printf("Added to roomname %s the at time: %d to the ip", roomname, new_user->last_seen);
+    printf("Added to roomname %s the at time: %lld to the ", roomname, new_user->last_seen);
     print_ip(ip);
 
     return;
@@ -274,7 +289,9 @@ int main()
     fd.fd = sockfd;
     fd.events = POLLIN;
 
-    while (1)
+    //? better than just 1 and can be used later for control c the program
+    char running = 1;
+    while (running)
     {
         //! code other part that will just reply to pings maybe?
         //! maybe buffer should be re init to 0 after each recvfrom? to avoid parsing old data if new packet is smaller than old one
@@ -282,7 +299,14 @@ int main()
 
         //! ping here before everything
         // - send_all_pings() - every 5? seconds
-	    // - cleanup() When do i run this? - If users Timestamp more than 10 seconds then remove from room.
+            /*  I think the Ping feature will have an error as the server will send one ping to the client,
+                but the client kernel will reply to that ping and the server will receive that pong instead of the client pong
+                that breaks my server ping - client pong logic, need to find a way to make it work.
+                ideas for now:
+                    - Custom ICMP packet that maybe the kernel wont answer so only the client handles? Might work or its going to be filtered by the kernel <- using this logic even the server wouldnt need to disable ping from the kernel 
+                    - disable ping for client too (not great) 
+            */
+	    // - cleanup() When do i run this? - If users last_seen more than 10 seconds then remove from room.
 
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
         // 
@@ -333,7 +357,9 @@ int main()
                         // ? best way to do this is to hardcode room logic to name "room" so users cant change of room,
                         // ? so we ignore the value received from the user
                         if (!strcmp(icmp_header->roomname, "room"))
-                            printf("same room, validation ok\n");
+                        {
+                            // printf("same room, validation ok\n");
+                        }
 
                         //? here we add user if not already in room 
                         //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
@@ -349,7 +375,8 @@ int main()
                         //     exit(EXIT_FAILURE);
                         // }
 
-                        add_if_not_in_room(icmp_header->roomname, room, ip_header->saddr);
+                        //? for now we just add to roomname "room" this will change when we add the different rooms
+                        add_if_not_in_room(icmp_header->roomname, icmp_header->username, room, ip_header->saddr);
 
                         //? here we create the broadcast icmp packet
                         struct icmp icmp_packet =
