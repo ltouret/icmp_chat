@@ -9,22 +9,25 @@
 #include <poll.h>
 #include <time.h>
 
-//! add defines for max len of username, roomname, max rooms etc, no magic numbers
-// # define ICMP_
 #define ICMP_ECHO 8
 #define ICMP_ECHO_REPLY 0
+
+//! add defines for max len of username, roomname, max rooms etc, no magic numbers
+//! move structs to header file maybe? if they are shared between client and server
 
 struct icmp
 {
     // header 20 bytes
     uint8_t icmp_type;
     uint8_t icmp_code;
-    uint16_t icmp_cksum; // padding
+    uint16_t icmp_cksum;
     uint16_t icmp_id;
     uint16_t icmp_seq;
-    uint32_t icmp_otime;
+
+    //? this padding could be used for more data or some nounce for example (could be fun :D)
+    uint32_t icmp_otime; // padding
     uint32_t icmp_rtime; // padding
-    uint32_t icmp_ttime;
+    uint32_t icmp_ttime; // padding
 
     // padding 4 bytes
     uint32_t padding;
@@ -35,7 +38,7 @@ struct icmp
     uint8_t roomname[10];
     //! try with more len for message
     uint8_t message[20];
-};
+}; //__attribute__((packed));
 
 //! maybe max rooms to not get ddos out of memory by some random?
 //? too big?
@@ -44,8 +47,8 @@ struct room
     char roomname[11];
     //? usernames dont seem necessary, each time and user sends a msg if broadcast directly his username to all the others
     // ? but all the others receive the username so keeping those in memory is useless no?
-    char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
-    uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this //? use a define not a magic number
+    // char users[100][11]; //! maybe transform users to ints? so i just keep 100 ints here? -> user sam logs in becomes 1, etc
+    // uint32_t ips[100]; // save the ips of everyone in the room -> need to add protection for this //? use a define not a magic number
     unsigned char user_counter;
     struct user *user_list_head;
     struct user *user_list_tail;
@@ -56,7 +59,7 @@ struct room
 //? remember the order of typed elements is important in c structures maybe adapt this
 struct user
 {
-    char username[11];
+    char username[10]; //? <- what size i use here?
     uint32_t ip;
     uint64_t last_seen;
     struct user *next;
@@ -277,16 +280,15 @@ void send_all_pings(int sockfd, struct user *current_user)
 {
     /*
     TODO for now just send a special PING packet 
-    What could PING msg be?
+        What could a PING packet be?
     */
     struct icmp icmp_packet =
     {
-        // .username = icmp_header->username, // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
+        .username = "PING", // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
         .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
-        // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
+        .message = "PING", //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
         .icmp_id = 0,
-        .icmp_type = ICMP_ECHO_REPLY,
-        // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
+        .icmp_type = ICMP_ECHO, // <- ICMP_ECHO as server sends to client
     };
 
     //! no magic number add a define with max size of msgs and logic to cut messages if too big maybe?
@@ -294,6 +296,7 @@ void send_all_pings(int sockfd, struct user *current_user)
     // strncpy(icmp_packet.username, icmp_header->username, 10);
 
     icmp_packet.icmp_cksum = 0;
+    //TODO change this to use the ICMP_STRUCT_SIZE define
     icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
 
     struct sockaddr_in dest_addr = {0};
@@ -303,11 +306,8 @@ void send_all_pings(int sockfd, struct user *current_user)
         dest_addr.sin_addr.s_addr = current_user->ip;
         if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
         {
-            perror("sendto");
-            close(sockfd);
-            exit(EXIT_FAILURE);
+            perror("send_all_pings sendto");
         }
-        printf("sent\n");
         current_user = current_user->next;
     }
 }
@@ -318,12 +318,12 @@ int main()
     struct room *room = NULL;
     //? free this at the end of the program, but since its infinite loop it shouldnt be a problem for now
     create_room(&room, "room");
-    unsigned char buffer[1000] = {0};
+    unsigned char buffer[1001] = {0};
 
     sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
     if (sockfd < 0)
     {
-        perror("socket");
+        perror("socket init");
         exit(EXIT_FAILURE);
     }
 
@@ -359,8 +359,11 @@ int main()
         if (ret > 0) {
             if (fd.revents & POLLIN) {
                 //? recvfrom
-                ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
-                if (bytes_received < 0)
+                //TODO no magic numbers change buffer received size!
+                ssize_t bytes_received = recvfrom(sockfd, buffer, 1000, 0, NULL, NULL);
+                // TODO is bytes_received enough to have a full icmp packet? if not we should ignore it
+                //TODO change size here to use the ICMP_STRUCT_SIZE define
+                if (bytes_received < sizeof(struct icmp))
                 {
                     perror("recvfrom");
                     continue; // Or handle the error as needed
@@ -376,6 +379,7 @@ int main()
                     //! change the name of this or use it only to get the header not all the data!
                     struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
+                    //? if its ICMP_ECHO then its the client sending a msg to use
                     if (icmp_header->icmp_type == ICMP_ECHO)
                     {
                         printf("Received %zd bytes.\n", bytes_received);
@@ -423,7 +427,7 @@ int main()
                             .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
                             // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
                             .icmp_id = icmp_header->icmp_id,
-                            .icmp_type = ICMP_ECHO_REPLY,
+                            .icmp_type = ICMP_ECHO_REPLY, //? must be reply here as we are replying to the client so its normal
                             // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
                         };
 
@@ -442,13 +446,22 @@ int main()
                             dest_addr.sin_addr.s_addr = current_user->ip;
                             if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
                             {
-                                perror("sendto");
-                                close(sockfd);
-                                exit(EXIT_FAILURE);
+                                //? If the send fails do we remove the user form the room
+                                // do we just ignore it and continue?
+                                // or do we quit the program
+                                perror("send msg sendto");
+                                // close(sockfd);
+                                // exit(EXIT_FAILURE);
                             }
                             printf("sent\n");
                             current_user = current_user->next;
                         }
+                    }
+                
+                    //? if its ICMP_ECHO_REPLY then its the client replying to our PING
+                    if (icmp_header->icmp_type == ICMP_ECHO_REPLY)
+                    {
+                        //TODO here we check if its really a PONG
                     }
                 }
             }

@@ -12,17 +12,22 @@
 #define ICMP_ECHO 8
 #define ICMP_ECHO_REPLY 0
 
+//! add defines for max len of username, roomname, max rooms etc, no magic numbers
+//! move structs to header file maybe? if they are shared between client and server
+
 struct icmp
 {
     // header 20 bytes
     uint8_t icmp_type;
     uint8_t icmp_code;
-    uint16_t icmp_cksum; // padding
+    uint16_t icmp_cksum;
     uint16_t icmp_id;
     uint16_t icmp_seq;
-    uint32_t icmp_otime;
+
+    //? this padding could be used for more data or some nounce for example (could be fun :D)
+    uint32_t icmp_otime; // padding
     uint32_t icmp_rtime; // padding
-    uint32_t icmp_ttime;
+    uint32_t icmp_ttime; // padding
 
     // padding 4 bytes
     uint32_t padding;
@@ -33,7 +38,7 @@ struct icmp
     uint8_t roomname[10];
     //! try with more len for message
     uint8_t message[20];
-};
+}; //__attribute__((packed));
 
 
 /*
@@ -57,7 +62,7 @@ int main(int argc, char *argv[])
     sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
     if (sockfd < 0)
     {
-        perror("socket");
+        perror("socket init");
         exit(EXIT_FAILURE);
     }
 
@@ -109,6 +114,7 @@ int main(int argc, char *argv[])
                 };
 
             //? icmp.message is unsigned char so i get warning between char and unsigned char
+            //? client.c:117:21: warning: passing 'uint8_t[20]' (aka 'unsigned char[20]') to parameter of type 'char *' converts between pointers to integer types where one is of the
             strncpy(icmp_packet.message, msg_buffer, 20);
 
             if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
@@ -119,35 +125,37 @@ int main(int argc, char *argv[])
             }
         }
 
-        // Socket has data! recv() it and printf().
+        //? Socket has msg data! recv() it and printf().
         if (fds[1].revents & POLLIN) {
             //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
-            char buffer[1000] = {0};
-            ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer), 0, NULL, NULL);
+            // TODO move buffer outside the while loop to not waste cpu re initing to 0
+            char buffer[1001] = {0};
+            //! const size_t expected_size = sizeof(struct icmp); // <- this should a DEFINE with the size of the icmp struct
+            //TODO no magic numbers change buffer received size!
+            ssize_t bytes_received = recvfrom(sockfd, buffer, 1000, 0, NULL, NULL);
             // printf("Received %zd bytes.\n", bytes_received);
-            struct icmp *icmp_reply = (struct icmp *)(buffer); // Skip IP header
+            struct icmp *icmp_reply = (struct icmp *)(buffer);
 
-            //? is bytes_received > 0 protection necessary
-            //TODO if its a PING from server reply PONG and nothing else (eg dont print to screen)
-            if (bytes_received > 0 && icmp_reply->icmp_type == ICMP_ECHO_REPLY)
+            //TODO change size here to use the ICMP_STRUCT_SIZE define
+            // ?change to this later his -> if (bytes_received < (ssize_t)sizeof(struct icmp)) continue;
+            if (bytes_received >= sizeof(struct icmp) && icmp_reply->icmp_type == ICMP_ECHO_REPLY)
             {
-                // printf("Received %zd bytes inside the echo REPLY\n", bytes_received);
+                buffer[bytes_received] = '\0';
 
-                // printf("IP Header:\n");
-                // printf("  Version: %u\n", ip_header->version);
-                // printf("  Header Length: %u\n", ip_header->ihl * 4);
-                // printf("  Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->saddr));
-                // printf("  Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->daddr));
-                // printf("  Protocol: %u\n", ip_header->protocol);
+                //TODO here we check if its really a MSG if it is print to client screen
 
-                // printf("ICMP data:\n");
-                // printf("  Type: %u\n", icmp_header->icmp_type);
-                // printf("  Code: %u\n", icmp_header->icmp_code);
-                // printf("%s: ", icmp_reply->username);
-                // printf("  %s\n", icmp_reply->roomname);
-                // printf("%s\n", icmp_reply->message);
+                //? if ICMP_ECHO_REPLY but we dont have any other protection then any packet as this will be shown to the client
+                //? any protection i can add?
 
-                printf("%s: %s\n", icmp_reply->username, icmp_reply->message);
+                //! this limits size of username and message to 10 and 20 chars, maybe add some kind of buffer split for bigger messages?
+                printf("%.10s: %.20s\n", icmp_reply->username, icmp_reply->message);
+            }
+
+            //? Socket has PING data - receive and reply to server with a ICMP_ECHO_REPLY
+            //TODO if its a PING from server reply PONG and nothing else (eg dont print to screen)
+            if (bytes_received >= sizeof(struct icmp) && icmp_reply->icmp_type == ICMP_ECHO)
+            {
+                //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
             }
         }
     }
