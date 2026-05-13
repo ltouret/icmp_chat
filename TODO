@@ -5,6 +5,45 @@ TODO
 -? Make it futur proof with room names
 - need to disable ping in server machine: > sudo sysctl -w net.ipv4.icmp_echo_ignore_all=1
 
+## From source code (client.c / server.c)
+
+Buffer sizes for now are 1001 and recvm are 1000 should i receive that much or just the 64 bytes i need?
+
+### Code Organization
+- [ ] Move shared structs to a header file (shared between client & server)
+- [ ] Add #define constants: no magic numbers (max username len, roomname len,
+      max rooms, buffer sizes, ICMP struct size)
+- [ ] Extract add_user logic into its own reusable function (duplicated in server.c)
+- [ ] Remove debug helper function in server.c (marked "remove after")
+
+### Client
+- [ ] Use poll() to handle concurrent stdin + socket reads simultaneously
+- [ ] Add IP address validation on connect
+- [ ] Add message buffer split: if msg > 100 chars, send remainder in next packet
+      instead of losing data
+- [ ] Fix terminal scramble when a message arrives while user is typing
+- [ ] Handle Ctrl+C: graceful disconnect from server
+- [ ] Move recv buffer allocation outside the while loop (avoid re-init cost)
+- [ ] Handle PING from server: reply PONG (ICMP_ECHO_REPLY), do not print to screen
+
+### Server
+- [ ] Add max rooms limit to prevent OOM/DDoS via room creation
+- [ ] Add overflow protection on roomname (> 10 chars overflows)
+- [ ] Implement cleanup(): remove stale users (last_seen > 10s)
+- [ ] Implement send_all_pings() called every ~5 seconds
+- [ ] Re-zero recv buffer after each recvfrom to avoid stale data bleed
+- [ ] Add packet validation / checksum to identify packets coming from our clients
+      (e.g. use icmp_header->padding as a nonce/signature)
+- [ ] Fix echo loop: server catches its own ICMP echo, not the reply from client
+- [ ] Handle PONG reply from client (update last_seen, do not broadcast)
+
+### Ping/Pong
+- [ ] Solve kernel intercepting ICMP echo replies before client app sees them
+      Options: use custom ICMP type, or disable kernel ping on client machine too
+
+
+POC:
+
 // #include <stdio.h>
 // #include <stdlib.h>
 // #include <string.h>
