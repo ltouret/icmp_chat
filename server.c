@@ -315,7 +315,7 @@ int main()
         //! ping here before everything
         //TODO broken for now, fix it!
         send_all_pings(sockfd, room); // - every 5? seconds
-        sleep(2);
+        sleep(2); // <- remove later
             /*  
                 TODO
                 I think the Ping feature will have an error as the server will send one ping to the client,
@@ -353,6 +353,10 @@ int main()
                     // Parse the ICMP header
                     //! change the name of this or use it only to get the header not all the data!
                     struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
+
+                    // TODO the error could be the icmp_id, need to investigate more!
+                    printf("  %d\n", icmp_header->icmp_id); //? for the ID we need maybe to keep track of this and keep augmenting it as a normal ping
+                    sleep(1); // <- remove later
 
                     //? if its ICMP_ECHO and (for now) its not a PING packet then its the client sending a msg to use
                     if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING"))
@@ -434,7 +438,8 @@ int main()
                     }
                 
                     //? if its ICMP_ECHO_REPLY and (for now) a PONG then its the client replying to our PING
-                    if (icmp_header->icmp_type == ICMP_ECHO_REPLY && !strcmp(icmp_header->username, "PONG"))
+                    //? if else?
+                    else if (icmp_header->icmp_type == ICMP_ECHO_REPLY && !strcmp(icmp_header->username, "PONG"))
                     {
                         //TODO here we check if its really a PONG
                         printf("Received PONG packet from the client\n");

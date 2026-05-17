@@ -125,12 +125,13 @@ int main(int argc, char *argv[])
                 //? any protection i can add?
 
                 //! this limits size of username and message to 10 and 20 chars, maybe add some kind of buffer split for bigger messages?
-                printf("%.10s: %.20s\n", icmp_reply->username, icmp_reply->message);
+                printf("%d id: %.10s: %.20s\n", icmp_reply->icmp_id, icmp_reply->username, icmp_reply->message);
             }
 
             //? Socket has PING data - receive and reply to server with a ICMP_ECHO_REPLY
             //TODO if its a PING from server reply PONG and nothing else (eg dont print to screen)
-            if (icmp_reply->icmp_type == ICMP_ECHO)
+            //? if else?
+            else if (icmp_reply->icmp_type == ICMP_ECHO)
             {
                 //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
                 printf("Received PING packet from the server\n");
