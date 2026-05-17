@@ -238,13 +238,21 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
 //? this for now just sends a PING to every client
 // this means to every IP so if two clients have the same ip it will sent to that ip twice
 // when I rework the unique id of an user ill change this too most likely 
-void send_all_pings(int sockfd, struct user *current_user)
+void send_all_pings(int sockfd, struct room *room)
 {
-    // printf("called send_all_pings!\n");
+    printf("called send_all_pings!\n");
     /*
     TODO for now just send a special PING packet 
         What could a PING packet be?
     */
+
+    if (room->user_counter < 1) {
+        printf("No clients to send ping too\n");
+        return ;
+    }
+
+    struct user *current_user = room->user_list_head;
+
     struct icmp icmp_packet =
     {
         .username = "PING", // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
@@ -271,6 +279,8 @@ void send_all_pings(int sockfd, struct user *current_user)
         {
             perror("send_all_pings sendto");
         }
+        printf("sent ping packet to: ");
+        print_ip(current_user->ip);
         current_user = current_user->next;
     }
 }
@@ -304,7 +314,8 @@ int main()
 
         //! ping here before everything
         //TODO broken for now, fix it!
-        send_all_pings(sockfd, room->user_list_head); // - every 5? seconds
+        send_all_pings(sockfd, room); // - every 5? seconds
+        sleep(2);
             /*  
                 TODO
                 I think the Ping feature will have an error as the server will send one ping to the client,
@@ -314,7 +325,7 @@ int main()
                     - Custom ICMP packet that maybe the kernel wont answer so only the client handles? Might work or its going to be filtered by the kernel <- using this logic even the server wouldnt need to disable ping from the kernel 
                     - disable ping for client too (not great) 
             */
-	    // - cleanup() When do i run this? - If users last_seen more than 10 seconds then remove from room.
+	    // cleanup(); - When do i run this? - If users last_seen more than 10 seconds then remove from room.
 
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
         int ret = poll(&fd, 1, 5000); //? for testing 5 seconds
@@ -379,7 +390,7 @@ int main()
                         // init to zero this!
                         struct sockaddr_in dest_addr = {0};
                         dest_addr.sin_family = AF_INET;
-                        dest_addr.sin_addr.s_addr = ip_header->saddr;
+                        // dest_addr.sin_addr.s_addr = ip_header->saddr;
 
                         //? for now we just add to roomname "room" this will change when we add the different rooms
                         add_if_not_in_room(icmp_header->roomname, icmp_header->username, room, ip_header->saddr);
@@ -417,7 +428,7 @@ int main()
                                 // close(sockfd);
                                 // exit(EXIT_FAILURE);
                             }
-                            printf("sent\n");
+                            printf("sent msg packet\n");
                             current_user = current_user->next;
                         }
                     }

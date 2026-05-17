@@ -110,7 +110,7 @@ int main(int argc, char *argv[])
                 continue; // Or handle the error as needed
             }
 
-            // printf("Received %zd bytes.\n", bytes_received);
+            printf("Received %zd bytes.\n", bytes_received);
             struct icmp *icmp_reply = (struct icmp *)(buffer);
 
             //TODO change size here to use the ICMP_STRUCT_SIZE define

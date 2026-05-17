@@ -20,6 +20,7 @@ Buffer sizes for now are 1001 and recvm are 1000 should i receive that much or j
 
 ### Shared
 - [ ] Add a define for ICMP_STRUCT_SIZE when size choice is stable
+- [ ] Add a function that will send the icmp packet itself, as now server and client send data in multiple places we could refacto to use a function
 - [ ] Add some other kind of validation of the packet data, maybe my own checksum - nounce?
 
 ### Client
