@@ -10,25 +10,31 @@ TODO
 Buffer sizes for now are 1001 and recvm are 1000 should i receive that much or just the 64 bytes i need?
 
 ### Code Organization
-- [ ] Move shared structs to a header file (shared between client & server)
+- [ ] Add a define for ICMP_STRUCT_SIZE when size choice is stable
+- [x] Move shared structs to a header file (shared between client & server)
+- [ ] move #include "shared.h" to include/shared.h
 - [ ] Add #define constants: no magic numbers (max username len, roomname len,
       max rooms, buffer sizes, ICMP struct size)
 - [ ] Extract add_user logic into its own reusable function (duplicated in server.c)
 - [ ] Remove debug helper function in server.c (marked "remove after")
 
+### Shared
+- [ ] Add a define for ICMP_STRUCT_SIZE when size choice is stable
+- [ ] Add some other kind of validation of the packet data, maybe my own checksum - nounce?
+
 ### Client
-- [ ] Use poll() to handle concurrent stdin + socket reads simultaneously
+- [x] Use poll() to handle concurrent stdin + socket reads simultaneously
 - [ ] Add IP address validation on connect
 - [ ] Add message buffer split: if msg > 100 chars, send remainder in next packet
       instead of losing data
 - [ ] Fix terminal scramble when a message arrives while user is typing
-- [ ] Handle Ctrl+C: graceful disconnect from server
+- [ ] Handle Ctrl+C: graceful disconnect from server <- send disconnect package?
 - [ ] Move recv buffer allocation outside the while loop (avoid re-init cost)
 - [ ] Handle PING from server: reply PONG (ICMP_ECHO_REPLY), do not print to screen
 
 ### Server
-- [ ] Add max rooms limit to prevent OOM/DDoS via room creation
-- [ ] Add overflow protection on roomname (> 10 chars overflows)
+- [ ] Add max rooms limit to prevent OOM/DDoS via room creation <- For when users can create room
+- [ ] Add overflow protection on roomname (> 10 chars overflows) <- For when users can create room
 - [ ] Implement cleanup(): remove stale users (last_seen > 10s)
 - [ ] Implement send_all_pings() called every ~5 seconds
 - [ ] Re-zero recv buffer after each recvfrom to avoid stale data bleed

@@ -9,36 +9,7 @@
 #include <poll.h>
 #include <time.h>
 
-#define ICMP_ECHO 8
-#define ICMP_ECHO_REPLY 0
-
-//! add defines for max len of username, roomname, max rooms etc, no magic numbers
-//! move structs to header file maybe? if they are shared between client and server
-
-struct icmp
-{
-    // header 20 bytes
-    uint8_t icmp_type;
-    uint8_t icmp_code;
-    uint16_t icmp_cksum;
-    uint16_t icmp_id;
-    uint16_t icmp_seq;
-
-    //? this padding could be used for more data or some nounce for example (could be fun :D)
-    uint32_t icmp_otime; // padding
-    uint32_t icmp_rtime; // padding
-    uint32_t icmp_ttime; // padding
-
-    // padding 4 bytes
-    uint32_t padding;
-
-    // data 40 bytes
-    // uint8_t data[40];
-    uint8_t username[10];
-    uint8_t roomname[10];
-    //! try with more len for message
-    uint8_t message[20];
-}; //__attribute__((packed));
+#include "shared.h"
 
 //! maybe max rooms to not get ddos out of memory by some random?
 //? too big?
@@ -109,21 +80,12 @@ void create_room(struct room **room, const char *roomname)
     // printf("current after %s\n", current->next->roomname);
 }
 
-// helper debug function remove after
+//! helper debug function remove after
 void print_ip(uint32_t ip) {
     struct in_addr ip_addr;
     ip_addr.s_addr = ip;
     printf("IP Address: %s\n", inet_ntoa(ip_addr));
 }
-
-//! check this func?
-// int64_t currentTimeMillis() {
-//     struct timeval time;
-//     gettimeofday(&time, NULL);
-//     int64_t s1 = (int64_t)(time.tv_sec) * 1000;
-//     int64_t s2 = (time.tv_usec / 1000);
-//     return s1 + s2;
-// }
 
 int64_t getMonotonicMillis() {
     struct timespec ts;
@@ -278,6 +240,7 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
 // when I rework the unique id of an user ill change this too most likely 
 void send_all_pings(int sockfd, struct user *current_user)
 {
+    // printf("called send_all_pings!\n");
     /*
     TODO for now just send a special PING packet 
         What could a PING packet be?
@@ -340,7 +303,8 @@ int main()
         //! buffer size is a question too using 1000 for testing purposes
 
         //! ping here before everything
-        // - send_all_pings() - every 5? seconds
+        //TODO broken for now, fix it!
+        send_all_pings(sockfd, room->user_list_head); // - every 5? seconds
             /*  
                 TODO
                 I think the Ping feature will have an error as the server will send one ping to the client,
@@ -353,7 +317,7 @@ int main()
 	    // - cleanup() When do i run this? - If users last_seen more than 10 seconds then remove from room.
 
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
-        int ret = poll(&fd, 1, 2000);
+        int ret = poll(&fd, 1, 5000); //? for testing 5 seconds
         // printf("we wait for now \n"); // <- DEBUG remove later
 
         if (ret > 0) {
@@ -365,7 +329,7 @@ int main()
                 //TODO change size here to use the ICMP_STRUCT_SIZE define
                 if (bytes_received < sizeof(struct icmp))
                 {
-                    perror("recvfrom");
+                    perror("recvfrom Packet too small");
                     continue; // Or handle the error as needed
                 }
 
@@ -379,8 +343,8 @@ int main()
                     //! change the name of this or use it only to get the header not all the data!
                     struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
-                    //? if its ICMP_ECHO then its the client sending a msg to use
-                    if (icmp_header->icmp_type == ICMP_ECHO)
+                    //? if its ICMP_ECHO and (for now) its not a PING packet then its the client sending a msg to use
+                    if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING"))
                     {
                         printf("Received %zd bytes.\n", bytes_received);
 
@@ -426,7 +390,7 @@ int main()
                             // .username = icmp_header->username, // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
                             .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
                             // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
-                            .icmp_id = icmp_header->icmp_id,
+                            .icmp_id = icmp_header->icmp_id, // TODO server could choose and id and like that keep track of users using ip + username + an id the server uses!
                             .icmp_type = ICMP_ECHO_REPLY, //? must be reply here as we are replying to the client so its normal
                             // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
                         };
@@ -458,10 +422,11 @@ int main()
                         }
                     }
                 
-                    //? if its ICMP_ECHO_REPLY then its the client replying to our PING
-                    if (icmp_header->icmp_type == ICMP_ECHO_REPLY)
+                    //? if its ICMP_ECHO_REPLY and (for now) a PONG then its the client replying to our PING
+                    if (icmp_header->icmp_type == ICMP_ECHO_REPLY && !strcmp(icmp_header->username, "PONG"))
                     {
                         //TODO here we check if its really a PONG
+                        printf("Received PONG packet from the client\n");
                     }
                 }
             }

@@ -9,37 +9,7 @@
 #include <errno.h>
 #include <poll.h>
 
-#define ICMP_ECHO 8
-#define ICMP_ECHO_REPLY 0
-
-//! add defines for max len of username, roomname, max rooms etc, no magic numbers
-//! move structs to header file maybe? if they are shared between client and server
-
-struct icmp
-{
-    // header 20 bytes
-    uint8_t icmp_type;
-    uint8_t icmp_code;
-    uint16_t icmp_cksum;
-    uint16_t icmp_id;
-    uint16_t icmp_seq;
-
-    //? this padding could be used for more data or some nounce for example (could be fun :D)
-    uint32_t icmp_otime; // padding
-    uint32_t icmp_rtime; // padding
-    uint32_t icmp_ttime; // padding
-
-    // padding 4 bytes
-    uint32_t padding;
-
-    // data 40 bytes
-    // uint8_t data[40];
-    uint8_t username[10];
-    uint8_t roomname[10];
-    //! try with more len for message
-    uint8_t message[20];
-}; //__attribute__((packed));
-
+#include "shared.h"
 
 /*
     For client we want to receive data from server and stdin at the same time,
@@ -133,13 +103,20 @@ int main(int argc, char *argv[])
             //! const size_t expected_size = sizeof(struct icmp); // <- this should a DEFINE with the size of the icmp struct
             //TODO no magic numbers change buffer received size!
             ssize_t bytes_received = recvfrom(sockfd, buffer, 1000, 0, NULL, NULL);
+
+            if (bytes_received < sizeof(struct icmp))
+            {
+                perror("recvfrom Packet too small");
+                continue; // Or handle the error as needed
+            }
+
             // printf("Received %zd bytes.\n", bytes_received);
             struct icmp *icmp_reply = (struct icmp *)(buffer);
 
             //TODO change size here to use the ICMP_STRUCT_SIZE define
-            // ?change to this later his -> if (bytes_received < (ssize_t)sizeof(struct icmp)) continue;
-            if (bytes_received >= sizeof(struct icmp) && icmp_reply->icmp_type == ICMP_ECHO_REPLY)
+            if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
             {
+                // Protection to not read data from a past message will be useful when we stop re zeroing the buffer every message
                 buffer[bytes_received] = '\0';
 
                 //TODO here we check if its really a MSG if it is print to client screen
@@ -153,9 +130,10 @@ int main(int argc, char *argv[])
 
             //? Socket has PING data - receive and reply to server with a ICMP_ECHO_REPLY
             //TODO if its a PING from server reply PONG and nothing else (eg dont print to screen)
-            if (bytes_received >= sizeof(struct icmp) && icmp_reply->icmp_type == ICMP_ECHO)
+            if (icmp_reply->icmp_type == ICMP_ECHO)
             {
                 //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
+                printf("Received PING packet from the server\n");
             }
         }
     }
