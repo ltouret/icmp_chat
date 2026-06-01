@@ -97,7 +97,7 @@ int64_t getMonotonicMillis() {
     return (int64_t)ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
 }
 
-struct user *create_user_in_room(char *username, uint32_t ip)
+struct user *create_user(char *username, uint32_t ip)
 {
     struct user *new_user = calloc(1, sizeof(struct user));
     if (!new_user)
@@ -108,7 +108,7 @@ struct user *create_user_in_room(char *username, uint32_t ip)
     strcpy(new_user->username, username);
     new_user->last_seen = getMonotonicMillis();
     new_user->ip = ip;
-    new_user->next = NULL;
+    new_user->next = NULL; //? already done with calloc but using good practice
 }
 
 //? for debugging maybe send username as parameter for now to show if it works correctly
@@ -158,7 +158,7 @@ void add_if_not_in_room(char *roomname, char *username, struct room *room, uint3
     {
         //TODO
         //! this goes into its own function as appending a new user is always the same!
-        struct user *new_user = create_user_in_room(username, ip);
+        struct user *new_user = create_user(username, ip);
         if (!new_user)
         {
             perror("Failed to allocate memory for user");
@@ -194,7 +194,7 @@ void add_if_not_in_room(char *roomname, char *username, struct room *room, uint3
 
     //? this is if adding second - third users ++
     //! this goes into its own function as appending a new user is always the same!
-    struct user *new_user = create_user_in_room(username, ip);
+    struct user *new_user = create_user(username, ip);
     if (!new_user)
     {
         perror("Failed to allocate memory for user");

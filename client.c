@@ -55,6 +55,19 @@ int main(int argc, char *argv[])
     char running = 1;
     while (running)
     {
+        /*
+            Every 5 seconds send a ping
+                check >= 5 seconds passed from last time we sent_ping
+                    if true -> send_ping and update time we wait in poll
+                    else we calculate how much does poll have to (max) wait before we try again to send_ping
+                poll will wait max x seconds dinamically, being x the how much time we need to wait until we send_ping again
+                    this can be 5 seconds if we dont sendto or recv a msg from the server
+                    or the seconds we need to wait until the total 5 seconds passed
+                    for example if we waited 3 seconds and sento/recv a msg then next iteration poll will wait 2 seconds max (if we dont sendto/recv another msg) 
+                if 
+        */
+        // if (now() + 5 seconds >= time_that_should_send_ping())
+            // send_ping(sockfd, dest_addr);
         poll(fds, 2, -1); // Wait forever until something happens
 
         // Keyboard has data! Read it and send() over socket.

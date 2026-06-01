@@ -17,6 +17,7 @@ Buffer sizes for now are 1001 and recvm are 1000 should i receive that much or j
       max rooms, buffer sizes, ICMP struct size)
 - [ ] Extract add_user logic into its own reusable function (duplicated in server.c)
 - [ ] Remove debug helper function in server.c (marked "remove after")
+- [ ] Bundle client and server together into only one program + one header file?
 
 ### Shared
 - [ ] Add a define for ICMP_STRUCT_SIZE when size choice is stable
