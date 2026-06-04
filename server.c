@@ -87,6 +87,7 @@ void print_ip(uint32_t ip) {
     printf("IP Address: %s\n", inet_ntoa(ip_addr));
 }
 
+//? check if deprecated now?
 int64_t getMonotonicMillis() {
     struct timespec ts;
     // CLOCK_MONOTONIC is immune to system time changes
@@ -106,7 +107,7 @@ struct user *create_user(char *username, uint32_t ip)
         return NULL;
     }
     strcpy(new_user->username, username);
-    new_user->last_seen = getMonotonicMillis();
+    new_user->last_seen = // will add when PING rcvmfrom client // getMonotonicMillis();
     new_user->ip = ip;
     new_user->next = NULL; //? already done with calloc but using good practice
 }
@@ -235,17 +236,17 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
     return (answer);
 }
 
+//! deprecated now
 //? this for now just sends a PING to every client
 // this means to every IP so if two clients have the same ip it will sent to that ip twice
-// when I rework the unique id of an user ill change this too most likely 
-void send_all_pings(int sockfd, struct room *room)
-{
-    printf("called send_all_pings!\n");
+// when I rework the unique id of an user ill change this too most likely
     /*
     TODO for now just send a special PING packet 
         What could a PING packet be?
     */
-
+void send_all_pings(int sockfd, struct room *room)
+{
+    printf("called send_all_pings!\n");
     if (room->user_counter < 1) {
         printf("No clients to send ping too\n");
         return ;
@@ -314,8 +315,8 @@ int main()
 
         //! ping here before everything
         //TODO broken for now, fix it!
-        send_all_pings(sockfd, room); // - every 5? seconds
-        sleep(2); // <- remove later
+        // send_all_pings(sockfd, room); // - every 5? seconds
+        // sleep(2); // <- remove later
             /*  
                 TODO
                 I think the Ping feature will have an error as the server will send one ping to the client,
@@ -329,6 +330,7 @@ int main()
 
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
         int ret = poll(&fd, 1, 5000); //? for testing 5 seconds
+        //! <- poll useless now? If we just rcvmfrom then we dont need anything else no?
         // printf("we wait for now \n"); // <- DEBUG remove later
 
         if (ret > 0) {
@@ -439,7 +441,7 @@ int main()
                 
                     //? if its ICMP_ECHO_REPLY and (for now) a PONG then its the client replying to our PING
                     //? if else?
-                    else if (icmp_header->icmp_type == ICMP_ECHO_REPLY && !strcmp(icmp_header->username, "PONG"))
+                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PONG"))
                     {
                         //TODO here we check if its really a PONG
                         printf("Received PONG packet from the client\n");

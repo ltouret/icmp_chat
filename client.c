@@ -11,6 +11,62 @@
 
 #include "shared.h"
 
+
+unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
+{
+    long sum;
+    unsigned short oddbyte;
+    short answer;
+
+    sum = 0;
+    while (nbytes > 1) {
+        sum += *ptr++;
+        nbytes -= 2;
+    }
+    if (nbytes == 1) {
+        oddbyte = 0;
+        *((u_char *)&oddbyte) = *(u_char *)ptr;
+        sum += oddbyte;
+    }
+
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum = sum + (sum >> 16);
+    answer = (short)~sum;
+
+    return (answer);
+}
+
+void send_ping(int sockfd)
+{
+    printf("called send_ping!\n");
+    struct icmp icmp_packet =
+    {
+        .username = "PING", // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
+        .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
+        .message = "PING", //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
+        .icmp_id = 0,
+        .icmp_type = ICMP_ECHO, // <- ICMP_ECHO as server sends to client
+    };
+
+    //! no magic number add a define with max size of msgs and logic to cut messages if too big maybe?
+    // strncpy(icmp_packet.message, icmp_header->message, 20);
+    // strncpy(icmp_packet.username, icmp_header->username, 10);
+
+    icmp_packet.icmp_cksum = 0;
+    //TODO change this to use the ICMP_STRUCT_SIZE define
+    icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
+
+    struct sockaddr_in dest_addr = {0};
+    dest_addr.sin_family = AF_INET;
+
+    if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+    {
+        perror("send_ping sendto");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
+}
+
 /*
     For client we want to receive data from server and stdin at the same time,
     so we are going to change this and use poll to listen to those two entry points!
@@ -68,7 +124,9 @@ int main(int argc, char *argv[])
         */
         // if (now() + 5 seconds >= time_that_should_send_ping())
             // send_ping(sockfd, dest_addr);
-        poll(fds, 2, -1); // Wait forever until something happens
+        poll(fds, 2, 5000); // wait max 5 seconds
+
+        // if ()
 
         // Keyboard has data! Read it and send() over socket.
         if (fds[0].revents & POLLIN) {
