@@ -33,6 +33,7 @@ struct user
     char username[10]; //? <- what size i use here?
     uint32_t ip;
     uint64_t last_seen;
+    //? what kind of userID here?
     struct user *next;
 };
 
@@ -331,7 +332,6 @@ int main()
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
         int ret = poll(&fd, 1, 5000); //? for testing 5 seconds
         //! <- poll useless now? If we just rcvmfrom then we dont need anything else no?
-        // printf("we wait for now \n"); // <- DEBUG remove later
 
         if (ret > 0) {
             if (fd.revents & POLLIN) {
@@ -356,22 +356,17 @@ int main()
                     //! change the name of this or use it only to get the header not all the data!
                     struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
-                    // TODO the error could be the icmp_id, need to investigate more!
-                    printf("  %d\n", icmp_header->icmp_id); //? for the ID we need maybe to keep track of this and keep augmenting it as a normal ping
-                    sleep(1); // <- remove later
-
                     //? if its ICMP_ECHO and (for now) its not a PING packet then its the client sending a msg to use
                     if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING"))
                     {
+                        //? move all this printfs to their own debug function?
                         printf("Received %zd bytes.\n", bytes_received);
-
                         // printf("IP Header:\n");
                         // printf("  Version: %u\n", ip_header->version);
                         // printf("  Header Length: %u\n", ip_header->ihl * 4);
                         // printf("  Source IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->saddr));
                         // printf("  Destination IP: %s\n", inet_ntoa(*(struct in_addr *)&ip_header->daddr));
                         // printf("  Protocol: %u\n", ip_header->protocol);
-
                         printf("ICMP data:\n");
                         // printf("  Type: %u\n", icmp_header->icmp_type);
                         // printf("  Code: %u\n", icmp_header->icmp_code);
@@ -394,7 +389,7 @@ int main()
                         //! reply back to the clients, infinite loop for now bc we reply and then our recv receives it as we are using the same ip address for server and client
                         //? this should be done in the for loop where we send the packet to all users in the room.
                         // init to zero this!
-                        struct sockaddr_in dest_addr = {0};
+                        struct sockaddr_in dest_addr = {0}; //? dont re init this
                         dest_addr.sin_family = AF_INET;
                         // dest_addr.sin_addr.s_addr = ip_header->saddr;
 
@@ -439,12 +434,12 @@ int main()
                         }
                     }
                 
-                    //? if its ICMP_ECHO_REPLY and (for now) a PONG then its the client replying to our PING
+                    //? if its ICMP_ECHO and (for now) a PING then its the client sending a PING packet
                     //? if else?
-                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PONG"))
+                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING"))
                     {
-                        //TODO here we check if its really a PONG
-                        printf("Received PONG packet from the client\n");
+                        //TODO here we check if its really a PING
+                        printf("Received PING packet from the client\n");
                     }
                 }
             }

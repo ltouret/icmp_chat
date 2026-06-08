@@ -11,7 +11,7 @@
 
 #include "shared.h"
 
-
+//! this is shared with server.c
 unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
 {
     long sum;
@@ -36,15 +36,27 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
     return (answer);
 }
 
-void send_ping(int sockfd)
+//? this for now just sends a PING to server
+// this means to every IP so if two clients have the same ip it will sent to that ip twice
+// when I rework the unique id of an user ill change this too most likely
+// ! if we havent sent any msgs what will happen here think about it!
+    /*
+    TODO think about how to have a unique user that the server will filter
+        for now we send the ping to the server but we need a way for the server to read the
+        icmp packet and get the userID if you will, to be able to change user->last_seen and reply back with the PONG packet
+
+    TODO for now just send a special PING packet 
+        What could a PING packet be?
+    */
+void send_ping(int sockfd, const struct sockaddr_in *dest_addr)
 {
-    printf("called send_ping!\n");
+    // printf("called send_ping!\n");x
     struct icmp icmp_packet =
     {
         .username = "PING", // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
         .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
         .message = "PING", //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
-        .icmp_id = 0,
+        // .icmp_id = 0,
         .icmp_type = ICMP_ECHO, // <- ICMP_ECHO as server sends to client
     };
 
@@ -56,10 +68,7 @@ void send_ping(int sockfd)
     //TODO change this to use the ICMP_STRUCT_SIZE define
     icmp_packet.icmp_cksum = calculate_checksum((unsigned short *)&icmp_packet, sizeof(icmp_packet));
 
-    struct sockaddr_in dest_addr = {0};
-    dest_addr.sin_family = AF_INET;
-
-    if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
+    if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)dest_addr, sizeof(*dest_addr)) < 0)
     {
         perror("send_ping sendto");
         close(sockfd);
@@ -83,7 +92,7 @@ int main(int argc, char *argv[])
     }
 
     int sockfd;
-    struct sockaddr_in dest_addr;
+    struct sockaddr_in dest_addr = {0};
 
     sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
     if (sockfd < 0)
@@ -120,13 +129,14 @@ int main(int argc, char *argv[])
                     this can be 5 seconds if we dont sendto or recv a msg from the server
                     or the seconds we need to wait until the total 5 seconds passed
                     for example if we waited 3 seconds and sento/recv a msg then next iteration poll will wait 2 seconds max (if we dont sendto/recv another msg) 
-                if 
+
+            TODO We need to recvmfrom a PONG from the server and save some kind of last_seen
+                if 10 secs > last_seen
+                    then disconnect from server?
         */
         // if (now() + 5 seconds >= time_that_should_send_ping())
-            // send_ping(sockfd, dest_addr);
-        poll(fds, 2, 5000); // wait max 5 seconds
-
-        // if ()
+            send_ping(sockfd, &dest_addr);
+        poll(fds, 2, 5000); // wait max 5 seconds -> this will be dynamic
 
         // Keyboard has data! Read it and send() over socket.
         if (fds[0].revents & POLLIN) {
@@ -185,13 +195,15 @@ int main(int argc, char *argv[])
             struct icmp *icmp_reply = (struct icmp *)(buffer);
 
             //TODO change size here to use the ICMP_STRUCT_SIZE define
+            // else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING"))
+            // in some cases we can receive back our own PING and treat it as a msg, this happens for example when
+            // we ping something that is not our icmp server <- check!
             if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
             {
                 // Protection to not read data from a past message will be useful when we stop re zeroing the buffer every message
                 buffer[bytes_received] = '\0';
 
                 //TODO here we check if its really a MSG if it is print to client screen
-
                 //? if ICMP_ECHO_REPLY but we dont have any other protection then any packet as this will be shown to the client
                 //? any protection i can add?
 
@@ -205,7 +217,7 @@ int main(int argc, char *argv[])
             else if (icmp_reply->icmp_type == ICMP_ECHO)
             {
                 //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
-                printf("Received PING packet from the server\n");
+                printf("Received PONG packet from the server\n");
             }
         }
     }
