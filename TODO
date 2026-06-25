@@ -24,6 +24,7 @@ Buffer sizes for now are 1001 and recvm are 1000 should i receive that much or j
 - [ ] Add a function that will send the icmp packet itself, as now server and client send data in multiple places we could refacto to use a function
 - [ ] Add some other kind of validation of the packet data, maybe my own checksum - nounce?
 - [x] Now we have calculate_checksum that is needed in the client as well to send the ping to the server
+- [ ] On both server & client we have smth like this remove (icmp_reply->icmp_type == ICMP_ECHO_REPLY as its in both if clauses) if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == 0)
 
 ### Client
 - [x] Use poll() to handle concurrent stdin + socket reads simultaneously

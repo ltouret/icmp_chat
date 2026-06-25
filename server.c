@@ -357,7 +357,7 @@ int main()
                     struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
                     //? if its ICMP_ECHO and (for now) its not a PING packet then its the client sending a msg to use
-                    if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING"))
+                    if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING") && icmp_header->action == 0)
                     {
                         //? move all this printfs to their own debug function?
                         printf("Received %zd bytes.\n", bytes_received);
@@ -404,6 +404,7 @@ int main()
                             // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
                             .icmp_id = icmp_header->icmp_id, // TODO server could choose and id and like that keep track of users using ip + username + an id the server uses!
                             .icmp_type = ICMP_ECHO_REPLY, //? must be reply here as we are replying to the client so its normal
+                            .action = 0
                             // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
                         };
 
@@ -436,9 +437,23 @@ int main()
                 
                     //? if its ICMP_ECHO and (for now) a PING then its the client sending a PING packet
                     //? if else?
-                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING"))
+                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == 1)
                     {
-                        //TODO here we check if its really a PING
+                        //TODO here we check if its really a PING from client
+                        /*
+                            I need to be able to indentify which client it is, we can do this with a some kind of hash function that will:
+                                use the ip, icmp_id, username to be able to identify the client
+                                atoi(ip) + atoi(icmp_id) + username -> all of this through djb2 hash funtion and save it in an unsigned long in the user struct 
+                                ! Maybe problem with this strat is that it will fail when passing through a router need to think and test it!
+                                ! as we use ip and icmp_id both which change when leaving the lan network
+                                ! need to check if icmp_id changes at each request if server receives the clients packet from a lan -> (open internet) server 
+                        */
+
+                        /*
+                            After this then here pseudo code is:
+                                - update the user->last_seen of the userId
+                                - do we send back something to the client so it knows the server still alive? <- Yes but later and what
+                        */
                         printf("Received PING packet from the client\n");
                     }
                 }

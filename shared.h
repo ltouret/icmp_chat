@@ -27,7 +27,15 @@ struct icmp
     uint32_t icmp_ttime; // padding
 
     // padding 4 bytes
-    uint32_t padding;
+    /*
+        Using 4 bytes to hold 1 byte?
+        TODO use padding as some kind of actions. "JOIN" / "LEAVE" / "PING" / "MSG"
+            ! USE DEFINES HERE - no magic numbers
+            - MSG 0
+            - PING 1
+            ... etc if needed
+    */
+    uint32_t action;
 
     // data 40 bytes
     // uint8_t data[40];

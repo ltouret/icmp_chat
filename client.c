@@ -11,6 +11,11 @@
 
 #include "shared.h"
 
+// #define ICMP_STRUCT_SIZE sizeof(struct icmp)
+//? For dev only remove later
+#define USERNAME "userTest"
+#define ROOMNAME "room"
+
 //! this is shared with server.c
 unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
 {
@@ -50,14 +55,17 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
     */
 void send_ping(int sockfd, const struct sockaddr_in *dest_addr)
 {
-    // printf("called send_ping!\n");x
+    // printf("called send_ping!\n");
     struct icmp icmp_packet =
     {
-        .username = "PING", // <- get username from the icmp packet received from the client, so we can broadcast to all the users in the room who sent the message
-        .roomname = "room", //? hardcoded as we for now only have one room, this feature will arrive later
+        //! for now ping will change later to real username
+        .username = "PING", //! This is not longer needed to be "PING" if we add .action == 1
+        .roomname = ROOMNAME, //? hardcoded as we for now only have one room, this feature will arrive later
         .message = "PING", //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
         // .icmp_id = 0,
         .icmp_type = ICMP_ECHO, // <- ICMP_ECHO as server sends to client
+        .action = 1
+        //! use padding as some kind of actions. "JOIN" / "LEAVE" / "PING" / "MSG"
     };
 
     //! no magic number add a define with max size of msgs and logic to cut messages if too big maybe?
@@ -157,11 +165,12 @@ int main(int argc, char *argv[])
             //! control c -> handle disconnect from server? -> maybe server pings to see if client still alive?
             struct icmp icmp_packet =
                 {
-                    .username = "userTest", // receive from user from argv or connect request
-                    .roomname = "room",
+                    .username = USERNAME,  // receive from user from argv or connect request
+                    .roomname = ROOMNAME,
                     //! test more than 20 chars here - overflow!
                     // .message = "message im the best! How are you?",
-                    .icmp_type = ICMP_ECHO
+                    .icmp_type = ICMP_ECHO,
+                    .action = 0
                 };
 
             //? icmp.message is unsigned char so i get warning between char and unsigned char
@@ -198,26 +207,34 @@ int main(int argc, char *argv[])
             // else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING"))
             // in some cases we can receive back our own PING and treat it as a msg, this happens for example when
             // we ping something that is not our icmp server <- check!
+            //! else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == 1)
+            // TODO test this **
             if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
             {
-                // Protection to not read data from a past message will be useful when we stop re zeroing the buffer every message
-                buffer[bytes_received] = '\0';
+                // ! remove icmp_reply->icmp_type == ICMP_ECHO_REPLY into its own like that we check it once
+                if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == 0)
+                {
+                    // Protection to not read data from a past message will be useful when we stop re zeroing the buffer every message
+                    buffer[bytes_received] = '\0';
 
-                //TODO here we check if its really a MSG if it is print to client screen
-                //? if ICMP_ECHO_REPLY but we dont have any other protection then any packet as this will be shown to the client
-                //? any protection i can add?
+                    //TODO here we check if its really a MSG if it is print to client screen
+                    //? if ICMP_ECHO_REPLY but we dont have any other protection then any packet as this will be shown to the client
+                    //? any protection i can add?
 
-                //! this limits size of username and message to 10 and 20 chars, maybe add some kind of buffer split for bigger messages?
-                printf("%d id: %.10s: %.20s\n", icmp_reply->icmp_id, icmp_reply->username, icmp_reply->message);
-            }
+                    //! this limits size of username and message to 10 and 20 chars, maybe add some kind of buffer split for bigger messages?
+                    printf("%d id: %.10s: %.20s\n", icmp_reply->icmp_id, icmp_reply->username, icmp_reply->message);
+                }
 
-            //? Socket has PING data - receive and reply to server with a ICMP_ECHO_REPLY
-            //TODO if its a PING from server reply PONG and nothing else (eg dont print to screen)
-            //? if else?
-            else if (icmp_reply->icmp_type == ICMP_ECHO)
-            {
-                //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
-                printf("Received PONG packet from the server\n");
+                //? Socket has PONG data - received from the server with a ICMP_ECHO_REPLY
+                // TODO if its a PONG from the server reply PONG we keep sending msg, if we dont receive it then we disconnect?
+                //? if else?
+                // ! remove icmp_reply->icmp_type == ICMP_ECHO_REPLY into its own like that we check it once
+                else if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == 1)
+                {
+                    //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
+                    // - For now the server wont send back something to the client so it knows the server still alive? <- Yes but later and what
+                    printf("Received PONG packet from the server\n");
+                }
             }
         }
     }
