@@ -287,6 +287,17 @@ void send_all_pings(int sockfd, struct room *room)
     }
 }
 
+uint32_t MurmurOAAT_32(const char* str, uint32_t h)
+{
+    // One-byte-at-a-time hash based on Murmur's mix
+    for (; *str; ++str) {
+        h ^= *str;
+        h *= 0x5bd1e995;
+        h ^= h >> 15;
+    }
+    return h;
+}
+
 int main()
 {
     int sockfd;
@@ -357,7 +368,7 @@ int main()
                     struct icmp *icmp_header = (struct icmp *)(buffer + ip_header->ihl * 4); // Skip IP header
 
                     //? if its ICMP_ECHO and (for now) its not a PING packet then its the client sending a msg to use
-                    if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING") && icmp_header->action == 0)
+                    if (icmp_header->icmp_type == ICMP_ECHO && strcmp(icmp_header->username, "PING") && icmp_header->action == ACTION_MSG)
                     {
                         //? move all this printfs to their own debug function?
                         printf("Received %zd bytes.\n", bytes_received);
@@ -437,17 +448,35 @@ int main()
                 
                     //? if its ICMP_ECHO and (for now) a PING then its the client sending a PING packet
                     //? if else?
-                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == 1)
+                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == ACTION_PING)
                     {
                         //TODO here we check if its really a PING from client
                         /*
                             I need to be able to indentify which client it is, we can do this with a some kind of hash function that will:
                                 use the ip, icmp_id, username to be able to identify the client
-                                atoi(ip) + atoi(icmp_id) + username -> all of this through djb2 hash funtion and save it in an unsigned long in the user struct 
+                                itoa(ip) + itoa(icmp_id) + username -> all of this through djb2 hash funtion and save it in an unsigned long in the user struct 
                                 ! Maybe problem with this strat is that it will fail when passing through a router need to think and test it!
                                 ! as we use ip and icmp_id both which change when leaving the lan network
                                 ! need to check if icmp_id changes at each request if server receives the clients packet from a lan -> (open internet) server 
                         */
+
+                        //! for now zero it, later not needed as snprintf does
+                        char buf[1024] = {0};
+
+                        //? cat here itoa(ip) + itoa(icmp_id) + username
+                        // ? check for len > 1024
+                        snprintf(buf, sizeof(buf), "%s%u%s", inet_ntoa(*(struct in_addr *)&ip_header->saddr), ntohs(icmp_header->icmp_id), icmp_header->username);
+
+                        // worse case
+                        buf[sizeof(buf) - 1] = '\0';
+
+                        // and send to buf then to hash function
+                        const int hash = MurmurOAAT_32(buf, 0);
+                    
+                        printf("the hash for this client is: %d\n", hash);
+
+                        // now save it to userID and next time we receive that userID we user->last_seen = now()
+                        // then add if in 15 secs no PING received clean that user from user_list and room
 
                         /*
                             After this then here pseudo code is:

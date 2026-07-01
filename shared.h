@@ -12,6 +12,10 @@
 #define ICMP_ECHO 8
 #define ICMP_ECHO_REPLY 0
 
+#define ACTION_MSG 0
+#define ACTION_PING 1
+#define ACTION_PONG 2
+
 struct icmp
 {
     // header 20 bytes
@@ -30,9 +34,9 @@ struct icmp
     /*
         Using 4 bytes to hold 1 byte?
         TODO use padding as some kind of actions. "JOIN" / "LEAVE" / "PING" / "MSG"
-            ! USE DEFINES HERE - no magic numbers
-            - MSG 0
+            - MSG 0 <- does MSG need a MSG_IN MSG_OUT? What happens here if we receive a ping from not my client, with this i can maybe filter it?
             - PING 1
+            - PONG 2
             ... etc if needed
     */
     uint32_t action;

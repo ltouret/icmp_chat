@@ -59,12 +59,12 @@ void send_ping(int sockfd, const struct sockaddr_in *dest_addr)
     struct icmp icmp_packet =
     {
         //! for now ping will change later to real username
-        .username = "PING", //! This is not longer needed to be "PING" if we add .action == 1
+        .username = "PING", //! This is not longer needed to be "PING" if we add .action == ACTION_PING
         .roomname = ROOMNAME, //? hardcoded as we for now only have one room, this feature will arrive later
         .message = "PING", //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
         // .icmp_id = 0,
         .icmp_type = ICMP_ECHO, // <- ICMP_ECHO as server sends to client
-        .action = 1
+        .action = ACTION_PING
         //! use padding as some kind of actions. "JOIN" / "LEAVE" / "PING" / "MSG"
     };
 
@@ -170,7 +170,7 @@ int main(int argc, char *argv[])
                     //! test more than 20 chars here - overflow!
                     // .message = "message im the best! How are you?",
                     .icmp_type = ICMP_ECHO,
-                    .action = 0
+                    .action = ACTION_MSG
                 };
 
             //? icmp.message is unsigned char so i get warning between char and unsigned char
@@ -212,7 +212,7 @@ int main(int argc, char *argv[])
             if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
             {
                 // ! remove icmp_reply->icmp_type == ICMP_ECHO_REPLY into its own like that we check it once
-                if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == 0)
+                if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == ACTION_MSG)
                 {
                     // Protection to not read data from a past message will be useful when we stop re zeroing the buffer every message
                     buffer[bytes_received] = '\0';
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
                 // TODO if its a PONG from the server reply PONG we keep sending msg, if we dont receive it then we disconnect?
                 //? if else?
                 // ! remove icmp_reply->icmp_type == ICMP_ECHO_REPLY into its own like that we check it once
-                else if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == 1)
+                else if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == ACTION_PONG)
                 {
                     //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
                     // - For now the server wont send back something to the client so it knows the server still alive? <- Yes but later and what
