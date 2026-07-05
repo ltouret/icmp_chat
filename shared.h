@@ -34,7 +34,7 @@ struct icmp
     /*
         Using 4 bytes to hold 1 byte?
         TODO use padding as some kind of actions. "JOIN" / "LEAVE" / "PING" / "MSG"
-            - MSG 0 <- does MSG need a MSG_IN MSG_OUT? What happens here if we receive a ping from not my client, with this i can maybe filter it?
+            - MSG 0 <- does MSG need a MSG_IN MSG_OUT? What happens here if we receive a ping from not my client, with this i can maybe filter it?  
             - PING 1
             - PONG 2
             ... etc if needed

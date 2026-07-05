@@ -55,6 +55,8 @@ unsigned short calculate_checksum(unsigned short *ptr, int nbytes)
     */
 void send_ping(int sockfd, const struct sockaddr_in *dest_addr)
 {
+    // ! if we havent sent a msg dont send pings as its a waste!!!
+    // ! if we havent sent a msg dont send pings as its a waste!!!
     // printf("called send_ping!\n");
     struct icmp icmp_packet =
     {

@@ -33,6 +33,7 @@ struct user
     char username[10]; //? <- what size i use here?
     uint32_t ip;
     uint64_t last_seen;
+    uint32_t id;
     //? what kind of userID here?
     struct user *next;
 };
@@ -110,12 +111,13 @@ struct user *create_user(char *username, uint32_t ip)
     strcpy(new_user->username, username);
     new_user->last_seen = // will add when PING rcvmfrom client // getMonotonicMillis();
     new_user->ip = ip;
+    // new_user->
     new_user->next = NULL; //? already done with calloc but using good practice
 }
 
 //? for debugging maybe send username as parameter for now to show if it works correctly
 // add_if_not_in_room(icmp_header, room, ip_header->saddr);
-void add_if_not_in_room(char *roomname, char *username, struct room *room, uint32_t ip)
+void add_if_not_in_room(char *roomname, char *username, uint16_t icmp_id, struct room *room, uint32_t ip)
 {
     /* This function is supposed to: 
         - check if user is not in room already
@@ -179,7 +181,33 @@ void add_if_not_in_room(char *roomname, char *username, struct room *room, uint3
 
     while (current_user)
     {
-        if (current_user->ip == ip)
+        //! for now zero it, later not needed as snprintf does
+        char buf[1024] = {0};
+        // //? cat here itoa(ip) + itoa(icmp_id) + username
+        // // ? check for len > 1024
+
+        // struct sockaddr_in dest_addr = {0}; //? dont re init this
+        // dest_addr.sin_family = AF_INET;
+        // dest_addr.sin_addr.s_addr = current_user->ip;
+
+        // 1. Wrap the uint32_t into a struct in_addr
+        struct in_addr src_addr;
+        src_addr.s_addr = current_user->ip; // saddr is already uint32_t
+
+        // 2. Pass it to inet_ntoa
+        char *ip_str = inet_ntoa(src_addr);
+
+        snprintf(buf, sizeof(buf), "%s%u%s", ip_str, ntohs(icmp_id), username);
+        // // worse case
+        buf[sizeof(buf) - 1] = '\0';
+        // // and send to buf then to hash function
+        const uint32_t user_id = MurmurOAAT_32(buf, 0);
+        printf("the hash for this client is: %d\n", user_id);
+
+        // current_user->id = user_id;
+
+        //! this now changes to current_user->id == user_id
+        if (current_user->id == user_id)
         {
             printf("Ip already in room: ");
             print_ip(ip);
@@ -405,7 +433,7 @@ int main()
                         // dest_addr.sin_addr.s_addr = ip_header->saddr;
 
                         //? for now we just add to roomname "room" this will change when we add the different rooms
-                        add_if_not_in_room(icmp_header->roomname, icmp_header->username, room, ip_header->saddr);
+                        add_if_not_in_room(icmp_header->roomname, icmp_header->username, icmp_header->icmp_id, room, ip_header->saddr);
 
                         //? here we create the broadcast icmp packet
                         struct icmp icmp_packet =
@@ -415,7 +443,7 @@ int main()
                             // .message = icmp_header->message, //? <- here i add the message that i want to broadcast to all the users in the room, for now its just a test message but later it will be the message received from the user
                             .icmp_id = icmp_header->icmp_id, // TODO server could choose and id and like that keep track of users using ip + username + an id the server uses!
                             .icmp_type = ICMP_ECHO_REPLY, //? must be reply here as we are replying to the client so its normal
-                            .action = 0
+                            .action = ACTION_MSG
                             // .icmp_cksum = 0, //? we will calculate the checksum later, after we fill the packet, and then we will add it to the packet, so we need to set it to 0 for now to calculate the checksum correctly
                         };
 
@@ -471,12 +499,26 @@ int main()
                         buf[sizeof(buf) - 1] = '\0';
 
                         // and send to buf then to hash function
-                        const int hash = MurmurOAAT_32(buf, 0);
+                        const uint32_t user_id = MurmurOAAT_32(buf, 0);
                     
-                        printf("the hash for this client is: %d\n", hash);
+                        printf("the hash for this client is: %d\n", user_id);
 
-                        // now save it to userID and next time we receive that userID we user->last_seen = now()
-                        // then add if in 15 secs no PING received clean that user from user_list and room
+                        // now check userID and if it exists in room we user->last_seen = now()
+
+                        struct user *current_user = room->user_list_head;
+
+                        while (current_user)
+                        {
+                            if (user_id == current_user->id)
+                            {
+                                //! here we update:
+                                // current_user->last_seen = now();
+                            }
+                            current_user = current_user->next;
+                        }
+
+                        // then add if in 15 secs no PING received from user we clean that user from that room user_list
+                        // clean_users();
 
                         /*
                             After this then here pseudo code is:
