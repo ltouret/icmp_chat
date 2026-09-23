@@ -1,4 +1,23 @@
 TODO
+
+To finish this project will choose some features and release version 1.0, will be able to come back later to add more features.
+
+Version 1.0 roadmap:
+
+- One executable for the server and the client (Maybe with program name argv[0] === server and symlink of executable named as client to or by parsing argv[1] as server or client)
+- Client sends msg -> server recv msg -> server broadcasts msg to all -> client recv msg
+- If msg is too big what do i do? split into more than one package?
+- [ ] both Add #define constants: no magic numbers (max username len, roomname len,
+- [ ] both Extract add_user logic into its own reusable function (duplicated in server.c)
+- [ ] client Move recv buffer allocation outside the while loop (avoid re-init cost) <- check this for server too?
+- [ ] client Add message buffer split: if msg > 100 chars, send remainder in next packet
+- [ ] server Remove debug helper function in server.c (marked "remove after")
+- [ ] server Implement cleanup(): remove stale users (last_seen > 10s)
+- [ ] server Fix echo loop: server catches its own ICMP echo, not the reply from client <- this with ACTION verbs in shared should be okay? client sends, server changes it and sends, if it doesnt come back changed from client then its not the client that send it.
+- [ ] server Re-zero recv buffer after each recvfrom to avoid stale data bleed
+
+New features TODO
+
 - One executable for the server and the client (Maybe with program name argv[0] === server and symlink of executable named as client to or by parsing argv[1] as server or client)
 - Client sends msg -> server recv msg -> server broadcasts msg to all -> client recv msg
 - If msg is too big what do i do? split into more than one package?
