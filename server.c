@@ -32,7 +32,7 @@ struct user
 {
     char username[10]; //? <- what size i use here?
     uint32_t ip;
-    uint64_t last_seen;
+    uint64_t last_seen; // two mins and remove?
     uint32_t id;
     //? what kind of userID here?
     struct user *next;
@@ -199,7 +199,7 @@ void add_if_not_in_room(char *roomname, char *username, uint16_t icmp_id, struct
 
         snprintf(buf, sizeof(buf), "%s%u%s", ip_str, ntohs(icmp_id), username);
         // // worse case
-        buf[sizeof(buf) - 1] = '\0';
+        buf[1023] = '\0';
         // // and send to buf then to hash function
         const uint32_t user_id = MurmurOAAT_32(buf, 0);
         printf("the hash for this client is: %d\n", user_id);
@@ -369,7 +369,7 @@ int main()
 	    // cleanup(); - When do i run this? - If users last_seen more than 10 seconds then remove from room.
 
         //? here calculate timeout for poll to be able to send pings to clients to check if they are still alive,
-        int ret = poll(&fd, 1, 5000); //? for testing 5 seconds
+        int ret = poll(&fd, 1, -1); //? for testing 5 seconds
         //! <- poll useless now? If we just rcvmfrom then we dont need anything else no?
 
         if (ret > 0) {
@@ -472,60 +472,6 @@ int main()
                             printf("sent msg packet\n");
                             current_user = current_user->next;
                         }
-                    }
-                
-                    //? if its ICMP_ECHO and (for now) a PING then its the client sending a PING packet
-                    //? if else?
-                    else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == ACTION_PING)
-                    {
-                        //TODO here we check if its really a PING from client
-                        /*
-                            I need to be able to indentify which client it is, we can do this with a some kind of hash function that will:
-                                use the ip, icmp_id, username to be able to identify the client
-                                itoa(ip) + itoa(icmp_id) + username -> all of this through djb2 hash funtion and save it in an unsigned long in the user struct 
-                                ! Maybe problem with this strat is that it will fail when passing through a router need to think and test it!
-                                ! as we use ip and icmp_id both which change when leaving the lan network
-                                ! need to check if icmp_id changes at each request if server receives the clients packet from a lan -> (open internet) server 
-                        */
-
-                        //! for now zero it, later not needed as snprintf does
-                        char buf[1024] = {0};
-
-                        //? cat here itoa(ip) + itoa(icmp_id) + username
-                        // ? check for len > 1024
-                        snprintf(buf, sizeof(buf), "%s%u%s", inet_ntoa(*(struct in_addr *)&ip_header->saddr), ntohs(icmp_header->icmp_id), icmp_header->username);
-
-                        // worse case
-                        buf[sizeof(buf) - 1] = '\0';
-
-                        // and send to buf then to hash function
-                        const uint32_t user_id = MurmurOAAT_32(buf, 0);
-                    
-                        printf("the hash for this client is: %d\n", user_id);
-
-                        // now check userID and if it exists in room we user->last_seen = now()
-
-                        struct user *current_user = room->user_list_head;
-
-                        while (current_user)
-                        {
-                            if (user_id == current_user->id)
-                            {
-                                //! here we update:
-                                // current_user->last_seen = now();
-                            }
-                            current_user = current_user->next;
-                        }
-
-                        // then add if in 15 secs no PING received from user we clean that user from that room user_list
-                        // clean_users();
-
-                        /*
-                            After this then here pseudo code is:
-                                - update the user->last_seen of the userId
-                                - do we send back something to the client so it knows the server still alive? <- Yes but later and what
-                        */
-                        printf("Received PING packet from the client\n");
                     }
                 }
             }
