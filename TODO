@@ -16,6 +16,9 @@ Version 1.0 roadmap:
 - [ ] server Fix echo loop: server catches its own ICMP echo, not the reply from client <- this with ACTION verbs in shared should be okay? client sends, server changes it and sends, if it doesnt come back changed from client then its not the client that send it.
 - [ ] server Re-zero recv buffer after each recvfrom to avoid stale data bleed
 
+Version 1.1
+- [ ] Client sends ping to not be cleaned by server cleanup function, that will remove all users that didnt send a message or sent a message in the last 20 secs?  
+
 New features TODO
 
 - One executable for the server and the client (Maybe with program name argv[0] === server and symlink of executable named as client to or by parsing argv[1] as server or client)
