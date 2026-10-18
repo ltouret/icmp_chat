@@ -12,6 +12,9 @@
 #define ICMP_ECHO 8
 #define ICMP_ECHO_REPLY 0
 
+//! need to be able to filter if its a message i sent or received in case broken client or server adding later.
+// #define ACTION_SEND_MSG 0
+// #define ACTION_RECV_MSG 0
 #define ACTION_MSG 0
 #define ACTION_PING 1
 #define ACTION_PONG 2
