@@ -126,27 +126,15 @@ int main(int argc, char *argv[])
     fds[1].fd = sockfd;     // Watch socket
     fds[1].events = POLLIN;
 
+    // buffers
+    char recv_buffer[1001] = {0};
+    char send_buffer[101] = {0};
+
     //? better than just 1 and can be used later for control c the program
     char running = 1;
     while (running)
     {
-        /*
-            Every 5 seconds send a ping
-                check >= 5 seconds passed from last time we sent_ping
-                    if true -> send_ping and update time we wait in poll
-                    else we calculate how much does poll have to (max) wait before we try again to send_ping
-                poll will wait max x seconds dinamically, being x the how much time we need to wait until we send_ping again
-                    this can be 5 seconds if we dont sendto or recv a msg from the server
-                    or the seconds we need to wait until the total 5 seconds passed
-                    for example if we waited 3 seconds and sento/recv a msg then next iteration poll will wait 2 seconds max (if we dont sendto/recv another msg) 
-
-            TODO We need to recvmfrom a PONG from the server and save some kind of last_seen
-                if 10 secs > last_seen
-                    then disconnect from server?
-        */
-        // if (now() + 5 seconds >= time_that_should_send_ping())
-            send_ping(sockfd, &dest_addr);
-        poll(fds, 2, 5000); // wait max 5 seconds -> this will be dynamic
+        poll(fds, 2, -1);
 
         // Keyboard has data! Read it and send() over socket.
         if (fds[0].revents & POLLIN) {
@@ -154,12 +142,16 @@ int main(int argc, char *argv[])
             // ! add more buffer for the msgs and add some kind of buffer split
             // ! than when its more 100 chars we send it on the next message instead of loosing the message
             // ? Example buffer 5 -> Hello -> first msg -> World -> second msg -> ! -> third msg
-            char msg_buffer[20] = {0};
+            // TODO move buffer outside the while loop to not waste cpu re initing to 0
             
             // For now if we get a msg while user is writing then it will scramble the terminal screen
             // By printing the message in the middle of the msg the user was going to send. Fix it!
-            fgets(msg_buffer, 20, stdin); //? <- receive direclty in icmp_packet.message to have to copy less data around?
-            msg_buffer[strcspn(msg_buffer, "\n")] = '\0'; // Remove newline character
+            fgets(send_buffer, 20, stdin); //? <- receive direclty in icmp_packet.message to have to copy less data around?
+            send_buffer[strcspn(send_buffer, "\n")] = '\0'; // Remove newline character
+
+            // ! if i send 100 chars and new line then this breaks as no new line in buffer so no null zero!
+            //! worse case
+            send_buffer[100] = '\0';
             printf("\033[A\33[2K\r"); 
             fflush(stdout);
             // printf("we sent %s", msg_buffer);
@@ -177,7 +169,7 @@ int main(int argc, char *argv[])
 
             //? icmp.message is unsigned char so i get warning between char and unsigned char
             //? client.c:117:21: warning: passing 'uint8_t[20]' (aka 'unsigned char[20]') to parameter of type 'char *' converts between pointers to integer types where one is of the
-            strncpy(icmp_packet.message, msg_buffer, 20);
+            strncpy(icmp_packet.message, send_buffer, 20);
 
             if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
             {
@@ -191,19 +183,18 @@ int main(int argc, char *argv[])
         if (fds[1].revents & POLLIN) {
             //! receive back from server -> doesnt work for now, we are catching our own echo the one that the kernel sends back not the one sent by our server
             // TODO move buffer outside the while loop to not waste cpu re initing to 0
-            char buffer[1001] = {0};
             //! const size_t expected_size = sizeof(struct icmp); // <- this should a DEFINE with the size of the icmp struct
             //TODO no magic numbers change buffer received size!
-            ssize_t bytes_received = recvfrom(sockfd, buffer, 1000, 0, NULL, NULL);
+            ssize_t bytes_received = recvfrom(sockfd, recv_buffer, 1000, 0, NULL, NULL);
 
             if (bytes_received < sizeof(struct icmp))
             {
                 perror("recvfrom Packet too small");
-                continue; // Or handle the error as needed
+                continue;
             }
 
             printf("Received %zd bytes.\n", bytes_received);
-            struct icmp *icmp_reply = (struct icmp *)(buffer);
+            struct icmp *icmp_reply = (struct icmp *)(recv_buffer);
 
             //TODO change size here to use the ICMP_STRUCT_SIZE define
             // else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING"))
@@ -211,32 +202,17 @@ int main(int argc, char *argv[])
             // we ping something that is not our icmp server <- check!
             //! else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == 1)
             // TODO test this **
-            if (icmp_reply->icmp_type == ICMP_ECHO_REPLY)
+            if (icmp_reply->icmp_type == ICMP_ECHO_REPLY icmp_reply->action == ACTION_MSG)
             {
-                // ! remove icmp_reply->icmp_type == ICMP_ECHO_REPLY into its own like that we check it once
-                if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == ACTION_MSG)
-                {
-                    // Protection to not read data from a past message will be useful when we stop re zeroing the buffer every message
-                    buffer[bytes_received] = '\0';
+                // Protection to not read data from a past message will be useful when we stop re zeroing the recv_buffer every message
+                recv_buffer[bytes_received] = '\0';
 
-                    //TODO here we check if its really a MSG if it is print to client screen
-                    //? if ICMP_ECHO_REPLY but we dont have any other protection then any packet as this will be shown to the client
-                    //? any protection i can add?
+                //TODO here we check if its really a MSG if it is print to client screen
+                //? if ICMP_ECHO_REPLY but we dont have any other protection then any packet as this will be shown to the client
+                //? any protection i can add?
 
-                    //! this limits size of username and message to 10 and 20 chars, maybe add some kind of buffer split for bigger messages?
-                    printf("%d id: %.10s: %.20s\n", icmp_reply->icmp_id, icmp_reply->username, icmp_reply->message);
-                }
-
-                //? Socket has PONG data - received from the server with a ICMP_ECHO_REPLY
-                // TODO if its a PONG from the server reply PONG we keep sending msg, if we dont receive it then we disconnect?
-                //? if else?
-                // ! remove icmp_reply->icmp_type == ICMP_ECHO_REPLY into its own like that we check it once
-                else if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == ACTION_PONG)
-                {
-                    //TODO here we check if its really a PING if it is reply PONG (ICMP_ECHO_REPLY)
-                    // - For now the server wont send back something to the client so it knows the server still alive? <- Yes but later and what
-                    printf("Received PONG packet from the server\n");
-                }
+                //! this limits size of username and message to 10 and 20 chars, maybe add some kind of recv_buffer split for bigger messages?
+                printf("%d id: %.10s: %.20s\n", icmp_reply->icmp_id, icmp_reply->username, icmp_reply->message);
             }
         }
     }
