@@ -33,7 +33,8 @@ struct user
     char username[10]; //? <- what size i use here?
     uint32_t ip;
     uint64_t last_seen; // two mins and remove?
-    uint32_t id;
+    uint16_t icmp_id;
+    uint16_t id;
     //? what kind of userID here?
     struct user *next;
 };
@@ -100,7 +101,7 @@ int64_t getMonotonicMillis() {
     return (int64_t)ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
 }
 
-struct user *create_user(char *username, uint32_t ip)
+struct user *create_user(char *username, uint32_t ip, uint16_t icmp_id, uint16_t id)
 {
     struct user *new_user = calloc(1, sizeof(struct user));
     if (!new_user)
@@ -109,9 +110,10 @@ struct user *create_user(char *username, uint32_t ip)
         return NULL;
     }
     strcpy(new_user->username, username);
-    new_user->last_seen = // will add when PING rcvmfrom client // getMonotonicMillis();
+    // new_user->last_seen = // will add when PING rcvmfrom client // getMonotonicMillis();
     new_user->ip = ip;
-    // new_user->
+    new_user->icmp_id = icmp_id;
+    new_user->id = id;
     new_user->next = NULL; //? already done with calloc but using good practice
 }
 
@@ -122,7 +124,7 @@ void add_if_not_in_room(char *roomname, char *username, uint16_t icmp_id, struct
     /* This function is supposed to: 
         - check if user is not in room already
             - if exists we do nothing
-            - if doesnt exists we add to room linked list and add ip to room ips
+            - if doesnt exists we add user to room linked list
         - if roomname doesnt exist do nothing
     */
     struct room *current_room = room;
@@ -162,7 +164,7 @@ void add_if_not_in_room(char *roomname, char *username, uint16_t icmp_id, struct
     {
         //TODO
         //! this goes into its own function as appending a new user is always the same!
-        struct user *new_user = create_user(username, ip);
+        struct user *new_user = create_user(username, ip, icmp_id, current_room->user_counter);
         if (!new_user)
         {
             perror("Failed to allocate memory for user");
@@ -181,33 +183,8 @@ void add_if_not_in_room(char *roomname, char *username, uint16_t icmp_id, struct
 
     while (current_user)
     {
-        //! for now zero it, later not needed as snprintf does
-        char buf[1024] = {0};
-        // //? cat here itoa(ip) + itoa(icmp_id) + username
-        // // ? check for len > 1024
-
-        // struct sockaddr_in dest_addr = {0}; //? dont re init this
-        // dest_addr.sin_family = AF_INET;
-        // dest_addr.sin_addr.s_addr = current_user->ip;
-
-        // 1. Wrap the uint32_t into a struct in_addr
-        struct in_addr src_addr;
-        src_addr.s_addr = current_user->ip; // saddr is already uint32_t
-
-        // 2. Pass it to inet_ntoa
-        char *ip_str = inet_ntoa(src_addr);
-
-        snprintf(buf, sizeof(buf), "%s%u%s", ip_str, ntohs(icmp_id), username);
-        // // worse case
-        buf[1023] = '\0';
-        // // and send to buf then to hash function
-        const uint32_t user_id = MurmurOAAT_32(buf, 0);
-        printf("the hash for this client is: %d\n", user_id);
-
-        // current_user->id = user_id;
-
-        //! this now changes to current_user->id == user_id
-        if (current_user->id == user_id)
+        //! check if user already in linked list, by checking if user ip is the same, icmp_id and id.  
+        if (current_user->ip == ip && current_user->icmp_id == icmp_id && current_user->id == current_room->user_counter)
         {
             printf("Ip already in room: ");
             print_ip(ip);
@@ -224,7 +201,7 @@ void add_if_not_in_room(char *roomname, char *username, uint16_t icmp_id, struct
 
     //? this is if adding second - third users ++
     //! this goes into its own function as appending a new user is always the same!
-    struct user *new_user = create_user(username, ip);
+    struct user *new_user = create_user(username, ip, icmp_id, current_room->user_counter);
     if (!new_user)
     {
         perror("Failed to allocate memory for user");
@@ -313,17 +290,6 @@ void send_all_pings(int sockfd, struct room *room)
         print_ip(current_user->ip);
         current_user = current_user->next;
     }
-}
-
-uint32_t MurmurOAAT_32(const char* str, uint32_t h)
-{
-    // One-byte-at-a-time hash based on Murmur's mix
-    for (; *str; ++str) {
-        h ^= *str;
-        h *= 0x5bd1e995;
-        h ^= h >> 15;
-    }
-    return h;
 }
 
 int main()
@@ -460,6 +426,7 @@ int main()
                         while (current_user)
                         {
                             dest_addr.sin_addr.s_addr = current_user->ip;
+                            icmp_packet.icmp_id = current_user->icmp_id; // TODO server could choose and id and like that keep track of users using ip + username + an id the server uses!
                             if (sendto(sockfd, &icmp_packet, sizeof(icmp_packet), 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr)) < 0)
                             {
                                 //? If the send fails do we remove the user form the room
@@ -469,7 +436,7 @@ int main()
                                 // close(sockfd);
                                 // exit(EXIT_FAILURE);
                             }
-                            printf("sent msg packet\n");
+                            printf("sent msg packet to icmp_id %d\n", icmp_packet.icmp_id);
                             current_user = current_user->next;
                         }
                     }

@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
             // we ping something that is not our icmp server <- check!
             //! else if (icmp_header->icmp_type == ICMP_ECHO && !strcmp(icmp_header->username, "PING") && icmp_header->action == 1)
             // TODO test this **
-            if (icmp_reply->icmp_type == ICMP_ECHO_REPLY icmp_reply->action == ACTION_MSG)
+            if (icmp_reply->icmp_type == ICMP_ECHO_REPLY && icmp_reply->action == ACTION_MSG)
             {
                 // Protection to not read data from a past message will be useful when we stop re zeroing the recv_buffer every message
                 recv_buffer[bytes_received] = '\0';

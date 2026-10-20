@@ -17,7 +17,6 @@
 // #define ACTION_RECV_MSG 0
 #define ACTION_MSG 0
 #define ACTION_PING 1
-#define ACTION_PONG 2
 
 struct icmp
 {
